@@ -1,0 +1,4 @@
+(executable
+ (public_name compiler)
+ (name compiler)
+ (libraries atlp2023))
