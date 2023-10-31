@@ -1,11 +1,5 @@
 module M = Atlp2023
 
 let _ =
-  try
-    let lexbuf = Lexing.from_channel stdin in
-    while true do
-      let result = M.Parser.main M.Lexer.token lexbuf in
-      print_int result; print_newline(); flush stdout
-    done
-  with M.Lexer.Eof ->
-    exit 0
+  let _ = M.Parse.string_to_program "(fn () 0)" in ()
+  (* Ast.pp ast ; print_newline(); flush stdout *)
