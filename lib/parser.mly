@@ -40,12 +40,12 @@ program:
   | expr  { $1 }
 
 expr:
-  | var { Ast.E_Var $1 @@ at () }
+  | var { Ast.E_Var $1 }
   /* fun abstractions */
   | LPAREN FN LPAREN param_list RPAREN expr RPAREN
-    { Ast.E_Abs ($4, $6) @@ at () }
+    { Ast.E_Abs ($4, $6) }
   /* fun applications */
-  | expr expr { Ast.E_App ($1, $2) @@ at () }
+  | expr expr { Ast.E_App ($1, $2) }
 
 /* todo: dumb parsing, always terminates with a , */
 param_list:
@@ -53,11 +53,11 @@ param_list:
   | param COMMA param_list { $1 :: $3 }
 
 param:
-  | var COLON ty { ($1, $3) @@ at () }
+  | var COLON ty { ($1, $3) }
 
 var:
-  | NAT { $1 @@ at () }
+  | NAT { $1 }
 
 ty:
-  | var { (Ast.T_Var $1) @@ at () }
-  | ty RARROW ty { Ast.T_Arrow ($1, $3) @@ at () }
+  | var { (Ast.T_Var $1) }
+  | ty RARROW ty { Ast.T_Arrow ($1, $3) }

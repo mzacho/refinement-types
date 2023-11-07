@@ -18,6 +18,10 @@ let parse' name lexbuf start =
 let parse (type a) name lexbuf : a start -> a = function
   | Module -> parse' name lexbuf Parser.program1
 
-let string_to_program s =
+let string_to_program s: Ast.program =
+  let lexbuf = Lexing.from_string s in
+  parse "string" lexbuf Module
+
+let string_to_type s: Ast.ty =
   let lexbuf = Lexing.from_string s in
   parse "string" lexbuf Module

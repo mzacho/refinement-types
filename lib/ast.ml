@@ -1,20 +1,18 @@
-type var = int Source.phrase
+type var = string
 
-type ty = ty' Source.phrase
-and ty' =
-  | T_Var of var
-  | T_Arrow of ty * ty
+type base_ty =
+  | B_Int
 
-type param' = (var * ty)
+type ty =
+  | T_Refined_base of (base_ty * var * Solver.pred)
+  | T_Arrow of var * ty * ty
 
-type param = param' Source.phrase
-
-type params = param list
-
-type expr = expr' Source.phrase
-and expr' =
+type expr =
+  | E_Const of int
   | E_Var of var
-  | E_Abs of params * expr
-  | E_App of expr * expr
+  | E_Abs of var * expr
+  | E_App of expr * var
+  | E_Let of var * expr * expr
+  | E_Ann of expr * ty
 
 type program = expr
