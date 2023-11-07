@@ -33,3 +33,6 @@ Assuming `ocamlformat` is installed run
 ```
 dune fmt
 ```
+
+Correct formatting can be ensured using a `pre-commit` hook.
+Install using `pip install pre-commit`, then in the repo: `pre-commit install`.
