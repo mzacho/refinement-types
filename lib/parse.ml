@@ -1,4 +1,4 @@
-type 'a start = Module : Ast.program start
+type 'a start = Program : Ast.program start | Type : Ast.ty start
 
 let parse' name lexbuf start =
   lexbuf.Lexing.lex_curr_p <-
@@ -16,12 +16,13 @@ let parse' name lexbuf start =
     raise (Error.Syntax (region', s))
 
 let parse (type a) name lexbuf : a start -> a = function
-  | Module -> parse' name lexbuf Parser.program1
+  | Program -> parse' name lexbuf Parser.program1
+  | Type -> parse' name lexbuf Parser.ty1
 
-let string_to_program s: Ast.program =
+let string_to_program s : Ast.program =
   let lexbuf = Lexing.from_string s in
-  parse "string" lexbuf Module
+  parse "string" lexbuf Program
 
-let string_to_type s: Ast.ty =
+let string_to_type s : Ast.ty =
   let lexbuf = Lexing.from_string s in
-  parse "string" lexbuf Module
+  parse "string" lexbuf Type

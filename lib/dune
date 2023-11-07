@@ -1,5 +1,10 @@
 (library
- (name atlp2023))
+ (name atlp2023)
+ (libraries pprint)
+ (inline_tests)
+ (preprocess
+  (pps ppx_inline_test)))
 
 (ocamlyacc parser)
+
 (ocamllex lexer)

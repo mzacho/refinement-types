@@ -1,10 +1,8 @@
 type var = string
-
-type base_ty =
-  | B_Int
+type base_ty = B_Int
 
 type ty =
-  | T_Refined_base of (base_ty * var * Solver.pred)
+  | T_Refined of (base_ty * var * Solver.pred)
   | T_Arrow of var * ty * ty
 
 type expr =

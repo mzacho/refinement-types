@@ -8,8 +8,12 @@ let convert_pos pos =
   }
 
 }
+
+let letter = ['a'-'z''A'-'Z']
+let name = letter+
+
 rule token = parse
-[' ' '\t' '\n']       { token lexbuf }     (* skip blanks *)
+    [' ' '\t' '\n']       { token lexbuf }     (* skip blanks *)
   | ['0'-'9']+ as lxm { NAT(int_of_string lxm) }
   | '+'            { PLUS }
   | '-'            { MINUS }
@@ -17,8 +21,21 @@ rule token = parse
   | '/'            { DIV }
   | '('            { LPAREN }
   | ')'            { RPAREN }
-  | ':'            { COLON }
+  | '{'            { LBRACK }
+  | '}'            { RBRACK }
+  | ":"            { COLON }
   | ','            { COMMA }
+  | '.'            { DOT }
+  | "="            { EQ }
+  | '~'            { NEG }
+  | '&'            { AND }
+  | '|'            { OR }
   | "->"           { RARROW }
   | "fn"           { FN }
+  | "let"          { LET }
+  | "in"           { IN }
+  | "True"         { TRUE }
+  | "False"        { FALSE }
+  | "int"          { INT }
+  | name as s      { VAR s }
   | eof { EOF }

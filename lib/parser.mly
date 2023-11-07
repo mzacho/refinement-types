@@ -1,36 +1,21 @@
 %{
-open Source
-
-(* let error at msg = raise (Error.Syntax (at, msg)) *)
-
-(* Position handling *)
-
-let position_to_pos position =
-  { file = position.Lexing.pos_fname;
-    line = position.Lexing.pos_lnum;
-    column = position.Lexing.pos_cnum - position.Lexing.pos_bol
-  }
-
-let positions_to_region position1 position2 =
-  { left = position_to_pos position1;
-    right = position_to_pos position2
-  }
-
-let at () =
-  positions_to_region (Parsing.symbol_start_pos ()) (Parsing.symbol_end_pos ())
 
 %}
 
 %token <int> NAT
-%token PLUS MINUS TIMES DIV
-%token LPAREN RPAREN COLON COMMA RARROW
-%token FN
+%token <string> VAR
+%token PLUS MINUS TIMES DIV AND OR NEG DOT
+%token LPAREN RPAREN LBRACK RBRACK COLON COMMA RARROW
+%token FN LET IN
+%token TRUE FALSE EQ
+%token INT
 %token EOF
 %left PLUS MINUS        /* lowest precedence */
 %left TIMES DIV         /* medium precedence */
 %nonassoc UMINUS        /* highest precedence */
-%start program1             /* the entry point */
+%start program1 ty1             /* the entry points */
 %type <Ast.program> program1
+%type <Ast.ty> ty1
 
 %%
 program1:
@@ -41,23 +26,40 @@ program:
 
 expr:
   | var { Ast.E_Var $1 }
-  /* fun abstractions */
-  | LPAREN FN LPAREN param_list RPAREN expr RPAREN
-    { Ast.E_Abs ($4, $6) }
-  /* fun applications */
-  | expr expr { Ast.E_App ($1, $2) }
-
-/* todo: dumb parsing, always terminates with a , */
-param_list:
-  | /* empty */ { [] }
-  | param COMMA param_list { $1 :: $3 }
+  | NAT { Ast.E_Const $1 }
+  | LPAREN FN var DOT expr RPAREN
+    { Ast.E_Abs ($3, $5) }
+  | expr var { Ast.E_App ($1, $2) }
+  | LET var EQ expr IN expr
+    { Ast.E_Let ($2, $4, $6) }
+  | expr COLON ty
+    { Ast.E_Ann ($1, $3) }
 
 param:
   | var COLON ty { ($1, $3) }
 
 var:
-  | NAT { $1 }
+  | VAR { $1 } /* todo: parse string $1 */
+
+pred:
+  | var { Solver.P_Var $1 }
+  | TRUE { Solver.P_True }
+  | FALSE { Solver.P_False }
+  | NAT { Solver.P_Int $1 }
+  | pred AND pred { Solver.P_Conj ($1, $3) }
+  | pred OR pred { Solver.P_Disj ($1, $3) }
+  | NEG pred { Solver.P_Neg $2 }
+/* todo: P_Op */
+
+ty1:
+  | ty EOF { $1 }
+
+base_ty:
+  | INT { Ast.B_Int }
 
 ty:
-  | var { (Ast.T_Var $1) }
-  | ty RARROW ty { Ast.T_Arrow ($1, $3) }
+  /* | base_ty */
+  | base_ty LBRACK var COLON pred RBRACK
+    { Ast.T_Refined ($1, $3, $5) }
+/* { Data.t1 } */
+  | var COLON ty RARROW ty { Ast.T_Arrow ($1, $3, $5) }
