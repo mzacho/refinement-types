@@ -19,3 +19,17 @@ Build and run the code using
 dune build
 dune exec -- ./bin/compiler.exe
 ```
+
+### Testing
+
+```
+dune test
+```
+
+### Code formatting
+
+Assuming `ocamlformat` is installed run
+
+```
+dune fmt
+```
