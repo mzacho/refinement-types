@@ -1,6 +1,6 @@
 (lang dune 3.11)
 
-(name atlp2023)
+(name atplt2023)
 
 (generate_opam_files true)
 
@@ -16,10 +16,10 @@
 (documentation https://url/to/documentation)
 
 (package
- (name atlp2023)
+ (name atplt2023)
  (synopsis "A short synopsis")
  (description "A longer description")
- (depends ocaml dune)
+ (depends ocaml dune ppx_inline_test pprint ocamlformat)
  (tags
   (topics "to describe" your project)))
 

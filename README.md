@@ -9,8 +9,8 @@ The first Lambda language as described in the notes
 Assuming opam is installed along with the required libraries:
 
 ```
-opam install pprint
-opam install ppx_inline_test
+opam pin add -y -n .
+opam install --deps-only atplt2023
 ```
 
 Build and run the code using
