@@ -5,14 +5,20 @@ let int i = PPrint.string @@ Printf.sprintf "%d" i
 let str s = PPrint.string s
 let ( ^^ ) = PPrint.( ^^ )
 
+let pp_op (o : op) : PPrint.document =
+  match o with
+  | O_add -> str "+"
+  | O_Eq -> str "="
+  | O_Lt -> str "<"
+  | O_Le -> str "<="
+
 let rec pp_pred (p : pred) : PPrint.document =
   match p with
   | P_Var v -> str v
   | P_True -> str "True"
   | P_False -> str "False"
   | P_Int i -> int i
-  | P_Op (op, p, p') -> (
-      match op with O_add -> pp_pred p ^^ str "+" ^^ pp_pred p')
+  | P_Op (op, p, p') -> pp_pred p ^^ pp_op op ^^ pp_pred p'
   | P_Disj (p, p') -> pp_pred p ^^ str "\\/" ^^ pp_pred p'
   | P_Conj (p, p') -> pp_pred p ^^ str "/\\" ^^ pp_pred p'
   | P_Neg p -> str "~" ^^ pp_pred p

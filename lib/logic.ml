@@ -1,5 +1,5 @@
 type var = string
-type op = O_add
+type op = O_add | O_Eq | O_Lt | O_Le
 (* todo *)
 
 type sort = S_Int
