@@ -1,5 +1,5 @@
 open Ast
-open Solver
+open Logic
 
 let int i = PPrint.string @@ Printf.sprintf "%d" i
 let str s = PPrint.string s

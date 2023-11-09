@@ -1,6 +1,6 @@
 open Ast
 open Parse
-open Solver
+open Logic
 
 (* let parse_prog s: string = *)
 (*   let ast = string_to_program s in *)

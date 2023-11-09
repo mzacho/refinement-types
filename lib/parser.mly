@@ -42,13 +42,13 @@ var:
   | VAR { $1 } /* todo: parse string $1 */
 
 pred:
-  | var { Solver.P_Var $1 }
-  | TRUE { Solver.P_True }
-  | FALSE { Solver.P_False }
-  | NAT { Solver.P_Int $1 }
-  | pred AND pred { Solver.P_Conj ($1, $3) }
-  | pred OR pred { Solver.P_Disj ($1, $3) }
-  | NEG pred { Solver.P_Neg $2 }
+  | var { Logic.P_Var $1 }
+  | TRUE { Logic.P_True }
+  | FALSE { Logic.P_False }
+  | NAT { Logic.P_Int $1 }
+  | pred AND pred { Logic.P_Conj ($1, $3) }
+  | pred OR pred { Logic.P_Disj ($1, $3) }
+  | NEG pred { Logic.P_Neg $2 }
 /* todo: P_Op */
 
 ty1:
