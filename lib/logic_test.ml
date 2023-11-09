@@ -72,3 +72,30 @@ let%test _ =
   in
   let actual = substitute_constraint c x y in
   expected = actual
+
+(* Make forall binders unique *)
+let%test _ =
+  let c =
+    C_Implication
+      (x, S_Int, P_Var x, C_Implication (x, S_Int, P_Var x, C_Pred P_True))
+  in
+  match uniqueify_binders c with
+  | C_Implication
+      (x1, S_Int, P_Var x2, C_Implication (x3, S_Int, P_Var x4, C_Pred P_True))
+    ->
+      x1 = x2 && (not (x1 = x3)) && x3 = x4
+  | _ -> false
+
+(* Make forall binders unique conjunction *)
+let%test _ =
+  let c =
+    C_Conj
+      ( C_Implication (x, S_Int, P_Var x, C_Pred P_True),
+        C_Implication (x, S_Int, P_Var x, C_Pred P_True) )
+  in
+  match uniqueify_binders c with
+  | C_Conj
+      ( C_Implication (x1, S_Int, P_Var x2, C_Pred P_True),
+        C_Implication (x3, S_Int, P_Var x4, C_Pred P_True) ) ->
+      x1 = x2 && (not (x1 = x3)) && x3 = x4
+  | _ -> false
