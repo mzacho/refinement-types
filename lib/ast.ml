@@ -1,8 +1,6 @@
 type var = string
 type base_ty = B_Int
-type ty =
-  | T_Refined of (base_ty * var * Logic.pred)
-  | T_Arrow of var * ty * ty
+type ty = T_Refined of (base_ty * var * Logic.pred) | T_Arrow of var * ty * ty
 
 type expr =
   | E_Const of int

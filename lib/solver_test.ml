@@ -55,7 +55,7 @@ let%test _ =
   check c2
 
 (* Forall binders are respected:
- forall x:int. x = 0 => forall x:int. x = 1 => x = 1 *)
+   forall x:int. x = 0 => forall x:int. x = 1 => x = 1 *)
 let%test _ =
   let c0 = C_Pred (P_Op (O_Eq, P_Var x, one)) in
   let c1 = C_Implication (x, S_Int, P_Op (O_Eq, P_Var x, one), c0) in
