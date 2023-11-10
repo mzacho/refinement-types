@@ -15,6 +15,7 @@ depends: [
   "ppx_inline_test"
   "pprint"
   "ocamlformat"
+  "z3"
   "odoc" {with-doc}
 ]
 build: [

@@ -1,5 +1,5 @@
 open Ast
-open Solver
+open Logic
 
 (* This file defines data that could be convenient to use in testing/
    during development etc. *)

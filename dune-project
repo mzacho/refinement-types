@@ -19,7 +19,7 @@
  (name atplt2023)
  (synopsis "A short synopsis")
  (description "A longer description")
- (depends ocaml dune ppx_inline_test pprint ocamlformat)
+ (depends ocaml dune ppx_inline_test pprint ocamlformat z3)
  (tags
   (topics "to describe" your project)))
 
