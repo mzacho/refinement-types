@@ -1,9 +1,9 @@
 (library
  (name atlp2023)
  (libraries pprint z3)
- (inline_tests)
+ (inline_tests (flags -show-counts))
  (preprocess
-  (pps ppx_inline_test)))
+  (pps ppx_inline_test bisect_ppx --conditional)))
 
 (ocamlyacc parser)
 

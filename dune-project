@@ -1,26 +1,13 @@
-(lang dune 3.11)
+(lang dune 3.0)
 
 (name atplt2023)
 
 (generate_opam_files true)
 
-(source
- (github username/reponame))
-
-(authors "Author Name")
-
-(maintainers "Maintainer Name")
-
-(license LICENSE)
-
-(documentation https://url/to/documentation)
-
 (package
  (name atplt2023)
- (synopsis "A short synopsis")
- (description "A longer description")
- (depends ocaml dune ppx_inline_test pprint ocamlformat z3)
- (tags
-  (topics "to describe" your project)))
+ (synopsis "Refinement type system")
+ (depends ocaml dune ppx_inline_test bisect_ppx pprint ocamlformat z3)
+)
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/dune-files.html#dune-project
