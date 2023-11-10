@@ -58,4 +58,4 @@ let check (c : constraint_) =
   match Solver.check solver [ formula ] with
   | Solver.SATISFIABLE -> false
   | Solver.UNSATISFIABLE -> true
-  | Solver.UNKNOWN -> false (* TODO *)
+  | Solver.UNKNOWN -> failwith "Z3 returned unknown"
