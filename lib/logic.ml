@@ -20,6 +20,12 @@ type constraint_ =
   | C_Conj of (constraint_ * constraint_)
   | C_Implication of (var * sort * pred * constraint_)
 
+(* Convenience implication infix operator:
+   forall x:b. p => c ::= (x, b, p) ==> c
+*)
+let ( ==> ) ((x, b, p) : var * sort * pred) (c : constraint_) =
+  C_Implication (x, b, p, c)
+
 (* Transformations *)
 
 (*
@@ -52,8 +58,7 @@ let substitute_constraint (c : constraint_) (v1 : var) (v2 : var) : constraint_
     | C_Pred p -> C_Pred (substitute_pred p v1 v2)
     | C_Conj (c1, c2) -> C_Conj (subst_c c1, subst_c c2)
     | C_Implication (v, s, p, c') ->
-        if not (v = v1) then
-          C_Implication (v, s, substitute_pred p v1 v2, subst_c c')
+        if not (v = v1) then (v, s, substitute_pred p v1 v2) ==> subst_c c'
         else c
   in
   subst_c c
@@ -79,7 +84,7 @@ let uniqueify_binders (c : constraint_) : constraint_ =
         (* Substitute v' for v in both predicate and constraint *)
         let p' = substitute_pred p v v' in
         let c' = substitute_constraint c v v' in
-        C_Implication (v', s, p', uniqueify_c c')
+        (v', s, p') ==> uniqueify_c c'
     | _ -> c
   in
   uniqueify_c c
