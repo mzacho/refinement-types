@@ -1,4 +1,4 @@
-## ATLP 2023 - Refinement types
+## ATPLT 2023 - Refinement types
 
 ### Syntax
 
