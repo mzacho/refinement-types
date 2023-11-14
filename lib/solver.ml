@@ -14,10 +14,13 @@ let check (c : constraint_) =
   let m : (var, Expr.expr) Hashtbl.t = Hashtbl.create 100 in
   let op_to_z3_op (o : op) =
     match o with
-    | O_add -> fun e1 e2 -> Arithmetic.mk_add ctx [ e1; e2 ]
+    | O_Add -> fun e1 e2 -> Arithmetic.mk_add ctx [ e1; e2 ]
+    | O_Sub -> fun e1 e2 -> Arithmetic.mk_sub ctx [ e1; e2 ]
     | O_Eq -> Boolean.mk_eq ctx
     | O_Lt -> Arithmetic.mk_lt ctx
     | O_Le -> Arithmetic.mk_le ctx
+    | O_Gt -> Arithmetic.mk_gt ctx
+    | O_Ge -> Arithmetic.mk_ge ctx
   in
   let add_var (v : var) (s : sort) =
     (* Either we haven't seen v yet, in which case create a new z3 variable and update the map, or there already is z3 representation, in which case do nothing *)

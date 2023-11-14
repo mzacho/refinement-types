@@ -7,7 +7,7 @@
 %token PLUS MINUS TIMES DIV AND OR NEG DOT
 %token LPAREN RPAREN LBRACK RBRACK COLON COMMA RARROW
 %token FN LET IN
-%token TRUE FALSE EQ
+%token TRUE FALSE EQ NEQ GE GT LE LT
 %token INT
 %token EOF
 %left PLUS MINUS        /* lowest precedence */
@@ -49,7 +49,12 @@ pred:
   | pred AND pred { Logic.P_Conj ($1, $3) }
   | pred OR pred { Logic.P_Disj ($1, $3) }
   | NEG pred { Logic.P_Neg $2 }
-/* todo: P_Op */
+  | pred EQ pred { Logic.P_Op (O_Eq, $1, $3) }
+  | pred NEQ pred { Logic.P_Neg (Logic.P_Op (O_Eq, $1, $3)) }
+  | pred LT pred { Logic.P_Op (O_Lt, $1, $3) }
+  | pred LE pred { Logic.P_Op (O_Le, $1, $3) }
+  | pred GT pred { Logic.P_Op (O_Gt, $1, $3) }
+  | pred GE pred { Logic.P_Op (O_Ge, $1, $3) }
 
 ty1:
   | ty EOF { $1 }

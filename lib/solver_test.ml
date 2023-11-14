@@ -49,7 +49,7 @@ let%test "Check forall x:int. true => forall y:int. x = y => forall z:int. y = \
 let%test "Check forall x:int. true => forall y:int. y = x + 1 => x < y" =
   let c0 = C_Pred (P_Op (O_Lt, P_Var x, P_Var y)) in
   let c1 =
-    (y, S_Int, P_Op (O_Eq, P_Var y, P_Op (O_add, P_Var x, one))) ==> c0
+    (y, S_Int, P_Op (O_Eq, P_Var y, P_Op (O_Add, P_Var x, one))) ==> c0
   in
   let c2 = (x, S_Int, P_True) ==> c1 in
   check c2

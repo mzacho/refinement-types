@@ -27,6 +27,11 @@ rule token = parse
   | ','            { COMMA }
   | '.'            { DOT }
   | "="            { EQ }
+  | "!="           { NEQ }
+  | "<="           { LE }
+  | "<"            { LT}
+  | ">="           { GE }
+  | ">"            { GT }
   | '~'            { NEG }
   | '&'            { AND }
   | '|'            { OR }
