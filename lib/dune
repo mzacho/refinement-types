@@ -1,7 +1,8 @@
 (library
  (name atlp2023)
  (libraries pprint z3)
- (inline_tests (flags -show-counts))
+ (inline_tests
+  (flags -show-counts))
  (preprocess
   (pps ppx_inline_test bisect_ppx --conditional)))
 
