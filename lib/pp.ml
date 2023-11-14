@@ -7,10 +7,13 @@ let ( ^^ ) = PPrint.( ^^ )
 
 let pp_op (o : op) : PPrint.document =
   match o with
-  | O_add -> str "+"
+  | O_Add -> str "+"
+  | O_Sub -> str "-"
   | O_Eq -> str "="
   | O_Lt -> str "<"
   | O_Le -> str "<="
+  | O_Gt -> str ">"
+  | O_Ge -> str ">="
 
 let rec pp_pred (p : pred) : PPrint.document =
   match p with

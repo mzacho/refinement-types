@@ -1,3 +1,6 @@
+test:
+	dune runtest
+
 clean:
 	dune clean
 	rm -rf _coverage/

@@ -17,7 +17,7 @@ let%test "z[x := y] = z" = P_Var z = substitute_pred (P_Var z) x y
 let%test "(x + z)[x := y] = y + z" =
   let p1 = P_Var x in
   let p2 = P_Var z in
-  P_Op (O_add, P_Var y, p2) = substitute_pred (P_Op (O_add, p1, p2)) x y
+  P_Op (O_Add, P_Var y, p2) = substitute_pred (P_Op (O_Add, p1, p2)) x y
 
 (* (x \/ z)[x := y] = y \/ z *)
 let%test "(x \\/ z)[x := y] = y \\/ z" =

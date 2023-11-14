@@ -1,7 +1,5 @@
 type var = string
-type op = O_add | O_Eq | O_Lt | O_Le
-(* todo *)
-
+type op = O_Add | O_Sub | O_Eq | O_Lt | O_Le | O_Ge | O_Gt
 type sort = S_Int
 
 type pred =
@@ -30,7 +28,7 @@ let ( ==> ) ((x, b, p) : var * sort * pred) (c : constraint_) =
 
 (*
   Variable substitution in predicates: p[v1 := v2]
-  
+
   Substitute v2 for v1 in p
 *)
 let substitute_pred (p : pred) (v1 : var) (v2 : var) : pred =
@@ -47,7 +45,7 @@ let substitute_pred (p : pred) (v1 : var) (v2 : var) : pred =
 
 (*
   Variable substitution in constraints: c[v1 := v2]
-  
+
   Substitute v2 for v1 in c, while avoiding variable capture
 *)
 
