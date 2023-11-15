@@ -26,24 +26,22 @@ let rec pp_pred (p : pred) : PPrint.document =
   | P_Conj (p, p') -> pp_pred p ^^ str " ∧ " ^^ pp_pred p'
   | P_Neg p -> str "~" ^^ pp_pred p
 
+let pp_sort (s : sort) : PPrint.document = match s with S_Int -> str "ℤ"
 
-let pp_sort (s: sort) : PPrint.document =
-  match s with
-  | S_Int -> str "ℤ"
-
-let rec pp_constraint (c: constraint_) : PPrint.document =
+let rec pp_constraint (c : constraint_) : PPrint.document =
   match c with
   | C_Pred p -> pp_pred p
   | C_Conj (c1, c2) -> pp_constraint c1 ^^ str " ∧ " ^^ pp_constraint c2
   | C_Implication (v, s, p, c) ->
-     str "∀" ^^ str v ^^ str ": " ^^ pp_sort s ^^ str ". " ^^ pp_pred p ^^ str " ⇒ " ^^ pp_constraint c
+      str "∀" ^^ str v ^^ str ": " ^^ pp_sort s ^^ str ". " ^^ pp_pred p
+      ^^ str " ⇒ " ^^ pp_constraint c
 
 let rec pp_ty (t : ty) : PPrint.document =
   match t with
   | T_Refined (t, v, p) -> (
       match t with
       | B_Int -> str "int{" ^^ str v ^^ str ":" ^^ pp_pred p ^^ str "}")
-  | T_Arrow (v, t, t') -> str v ^^ str ":" ^^  pp_ty t ^^ str "->" ^^ pp_ty t'
+  | T_Arrow (v, t, t') -> str v ^^ str ":" ^^ pp_ty t ^^ str "->" ^^ pp_ty t'
 
 let rec pp_expr (ast : program) : PPrint.document =
   match ast with
@@ -55,14 +53,13 @@ let rec pp_expr (ast : program) : PPrint.document =
       str "let " ^^ str v ^^ str "." ^^ pp_expr e1 ^^ str "in" ^^ pp_expr e2
   | E_Ann (e, t) -> pp_expr e ^^ str ":" ^^ pp_ty t
 
-let dbg d: unit =
+let dbg d : unit =
   let ch = stdout in
   PPrint.ToChannel.pretty 1.0 100 ch d;
   Printf.fprintf ch "%s\n" "";
   flush_all ()
 
-let print s: unit =
-  Printf.fprintf stdout "%s\n" s
+let print s : unit = Printf.fprintf stdout "%s\n" s
 
 let doc_to_string doc : string =
   let buf = Buffer.create 0 in
