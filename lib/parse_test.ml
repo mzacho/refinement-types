@@ -38,6 +38,10 @@ let%test "let expression nested" =
   string_to_program "let x = 0 in let x = (fn y. 0) in 1"
   = E_Let (x', o, E_Let (x', E_Abs (y', o), l))
 
+let%test "plus x y" =
+  string_to_program "let x = 43 in let y = 10 in add x y" =
+    E_Let (x', E_Const 43, E_Let (y', E_Const 10, E_App (E_App (E_Var "add", "x"), "y")))
+
 (* Refined types *)
 
 let int' = T_Refined (B_Int, "x", P_True)
@@ -102,3 +106,7 @@ let%test "precedence of >=, =, &" =
         x',
         P_Conj (P_Op (O_Ge, P_Var x', P_Int 3), P_Op (O_Eq, P_Var x', P_Int 3))
       )
+
+let%test "curried fun type" =
+  string_to_type "x:int{v:True}->y:int{v:True}->int{z:z=x+y}"
+  = T_Arrow ("x", T_Refined (B_Int, "v", t), T_Arrow ("x", T_Refined (B_Int, "v", t), T_Refined(B_Int, "z", P_Op (O_Eq, P_Var "z", P_Op (O_Add,P_Var x', P_Var y')))))
