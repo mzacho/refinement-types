@@ -59,11 +59,13 @@ let%test "Fun app without annotation doesn't check" =
   let e = Parse.string_to_program "(fn x. x) x" in
   let t = Parse.string_to_type "int{v: 42}" in
   let g = Typecheck.E_Cons ("x", t, Typecheck.E_Empty) in
-  try Solver.check (Typecheck.check g e t) with
-    Typecheck.Synthesis_error _ -> true
+  try Solver.check (Typecheck.check g e t)
+  with Typecheck.Synthesis_error _ -> true
 
 let%test "Fun app with annotation checks" =
-  let e = Parse.string_to_program "(fn x. x):y:int{v: True} -> int{v: True} z" in
+  let e =
+    Parse.string_to_program "(fn x. x):y:int{v: True} -> int{v: True} z"
+  in
   let t = Parse.string_to_type "int{v: v = 42}" in
   let t' = Parse.string_to_type "int{v: True}" in
   let g = Typecheck.E_Cons ("z", t, Typecheck.E_Empty) in
@@ -76,8 +78,7 @@ let%test "Let exp checks" =
   Solver.check (Typecheck.check g e t)
 
 let%test "42 + 10 checks with precice refined type" =
-  let e = Parse.string_to_program
-            "let x = 42 in let y = 10 in add x y" in
+  let e = Parse.string_to_program "let x = 42 in let y = 10 in add x y" in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{z: z = 52}" in
   Solver.check (Typecheck.check g e t)
