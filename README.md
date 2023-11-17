@@ -4,14 +4,19 @@
 
 The first Lambda language as described in the notes
 
-### Building and running
-
-Assuming opam is installed along with the required libraries:
-
+### Setup
+Install the required libraries with opam:
 ```
 opam pin add -y -n .
 opam install --deps-only atplt2023
 ```
+
+Or use the nix-config:
+```
+nix-shell
+```
+
+### Building and running
 
 Build and run the code using
 
