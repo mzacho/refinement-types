@@ -1,3 +1,30 @@
+(* Subtyping tests *)
+let%test "Fail subtyping: int <: (int -> int)" =
+  let t = Parse.string_to_type "int{v: False}" in
+  let t' = Parse.string_to_type "x:int{v: True} -> int{v: True}" in
+  try Solver.check (Typecheck.sub t t')
+  with Typecheck.Subtyping_error _ -> true
+
+let%test "Fail subtyping: int :> (int -> int)" =
+  let t' = Parse.string_to_type "int{v: True}" in
+  let t = Parse.string_to_type "x:int{v: True} -> int{v: True}" in
+  try Solver.check (Typecheck.sub t t')
+  with Typecheck.Subtyping_error _ -> true
+
+let%test "Successfull subtyping: (int -> int) <: (int -> int)" =
+  let t = Parse.string_to_type "x:int{v: True} -> int{v: True}" in
+  Solver.check (Typecheck.sub t t)
+
+let%test "Fail subtyping: int :> bool)" =
+  try
+    let t' = Parse.string_to_type "bool{v: True}" in
+    let t = Parse.string_to_type "int{v: True}" in
+    Solver.check (Typecheck.sub t t')
+    (* TODO: after bool is added, should throw:
+        with Typecheck.Subtyping_error _ -> true *)
+  with Parsing.Parse_error -> true
+
+(* Type checking tests *)
 let%test "Integer identity function typechecks" =
   let e = Parse.string_to_program "(fn x. x)" in
   let g = Typecheck.E_Empty in
@@ -58,6 +85,13 @@ let%test "Var doesn't check with supertype of type in environment" =
 let%test "Fun app without annotation doesn't check" =
   let e = Parse.string_to_program "(fn x. x) x" in
   let t = Parse.string_to_type "int{v: 42}" in
+  let g = Typecheck.E_Cons ("x", t, Typecheck.E_Empty) in
+  try Solver.check (Typecheck.check g e t)
+  with Typecheck.Synthesis_error _ -> true
+
+let%test "Var not in Γ doesnt check" =
+  let e = Parse.string_to_program "y" in
+  let t = Parse.string_to_type "int{v: true}" in
   let g = Typecheck.E_Cons ("x", t, Typecheck.E_Empty) in
   try Solver.check (Typecheck.check g e t)
   with Typecheck.Synthesis_error _ -> true
