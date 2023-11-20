@@ -16,13 +16,10 @@ let%test "Successfull subtyping: (int -> int) <: (int -> int)" =
   Solver.check (Typecheck.sub t t)
 
 let%test "Fail subtyping: int :> bool)" =
-  try
-    let t' = Parse.string_to_type "bool{v: True}" in
-    let t = Parse.string_to_type "int{v: True}" in
-    Solver.check (Typecheck.sub t t')
-    (* TODO: after bool is added, should throw:
-        with Typecheck.Subtyping_error _ -> true *)
-  with Parsing.Parse_error -> true
+  let t' = Parse.string_to_type "bool{v: True}" in
+  let t = Parse.string_to_type "int{v: True}" in
+  try Solver.check (Typecheck.sub t t')
+  with Typecheck.Subtyping_error _ -> true
 
 (* Type checking tests *)
 let%test "Integer identity function typechecks" =
@@ -89,9 +86,16 @@ let%test "Fun app without annotation doesn't check" =
   try Solver.check (Typecheck.check g e t)
   with Typecheck.Synthesis_error _ -> true
 
+let%test "Fun app first exp not a function type" =
+  let e = Parse.string_to_program "x x" in
+  let t = Parse.string_to_type "int{v: 42}" in
+  let g = Typecheck.E_Cons ("x", t, Typecheck.E_Empty) in
+  try Solver.check (Typecheck.check g e t)
+  with Typecheck.Synthesis_error _ -> true
+
 let%test "Var not in Γ doesnt check" =
   let e = Parse.string_to_program "y" in
-  let t = Parse.string_to_type "int{v: true}" in
+  let t = Parse.string_to_type "int{v: True}" in
   let g = Typecheck.E_Cons ("x", t, Typecheck.E_Empty) in
   try Solver.check (Typecheck.check g e t)
   with Typecheck.Synthesis_error _ -> true
@@ -105,10 +109,16 @@ let%test "Fun app with annotation checks" =
   let g = Typecheck.E_Cons ("z", t, Typecheck.E_Empty) in
   Solver.check (Typecheck.check g e t')
 
-let%test "Let exp checks" =
+let%test "Let exp checks (int)" =
   let e = Parse.string_to_program "let x = 42 in x" in
   let g = Typecheck.E_Empty in
   let t = Parse.string_to_type "int{z: z <= 42}" in
+  Solver.check (Typecheck.check g e t)
+
+let%test "Let exp checks (bool)" =
+  let e = Parse.string_to_program "let x = true in (let y = false in x)" in
+  let g = Typecheck.E_Empty in
+  let t = Parse.string_to_type "bool{z: z}" in
   Solver.check (Typecheck.check g e t)
 
 let%test "42 + 10 checks with precice refined type" =

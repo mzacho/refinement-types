@@ -27,7 +27,8 @@ let check (c : constraint_) =
     match Hashtbl.find_opt m v with
     | None -> (
         match s with
-        | S_Int -> Hashtbl.add m v (Arithmetic.Integer.mk_const_s ctx v))
+        | S_Int -> Hashtbl.add m v (Arithmetic.Integer.mk_const_s ctx v)
+        | S_Bool -> Hashtbl.add m v (Boolean.mk_const_s ctx v))
     | _ -> ()
   in
   let build_expr (c : constraint_) =

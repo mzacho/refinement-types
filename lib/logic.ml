@@ -1,6 +1,6 @@
 type var = string
 type op = O_Add | O_Sub | O_Eq | O_Lt | O_Le | O_Ge | O_Gt
-type sort = S_Int
+type sort = S_Int | S_Bool
 
 type pred =
   | P_Var of var

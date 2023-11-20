@@ -39,8 +39,11 @@ rule token = parse
   | "fn"           { FN }
   | "let"          { LET }
   | "in"           { IN }
-  | "True"         { TRUE }
-  | "False"        { FALSE }
+  | "True"         { L_TRUE }
+  | "true"         { E_TRUE }
+  | "False"        { L_FALSE }
+  | "false"        { E_FALSE }
   | "int"          { INT }
+  | "bool"         { BOOL }
   | name as s      { VAR s }
   | eof { EOF }

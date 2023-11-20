@@ -1,5 +1,5 @@
 type var = string
-type base_ty = B_Int
+type base_ty = B_Int | B_Bool
 
 type ty =
   | T_Refined of (base_ty * var * Logic.pred) (* refined base type *)
@@ -12,5 +12,7 @@ type expr =
   | E_App of expr * var
   | E_Let of var * expr * expr
   | E_Ann of expr * ty
+  | E_True
+  | E_False
 
 type program = expr
