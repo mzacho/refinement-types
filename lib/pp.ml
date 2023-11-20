@@ -28,7 +28,8 @@ let rec pp_pred (p : pred) : PPrint.document =
   | P_Conj (p, p') -> pp_pred p ^^ str " ∧ " ^^ pp_pred p'
   | P_Neg p -> str "~" ^^ pp_pred p
 
-let pp_sort (s : sort) : PPrint.document = match s with S_Int -> str "ℤ"
+let pp_sort (s : sort) : PPrint.document =
+  match s with S_Int -> str "ℤ" | S_Bool -> str "𝔹"
 
 let rec pp_constraint (c : constraint_) : PPrint.document =
   match c with
@@ -40,9 +41,9 @@ let rec pp_constraint (c : constraint_) : PPrint.document =
 
 let rec pp_ty (t : ty) : PPrint.document =
   match t with
-  | T_Refined (t, v, p) -> (
-      match t with
-      | B_Int -> str "int{" ^^ str v ^^ str ":" ^^ pp_pred p ^^ str "}")
+  | T_Refined (t, v, p) ->
+      let base_ty = match t with B_Int -> str "int" | B_Bool -> str "bool" in
+      base_ty ^^ str "{" ^^ str v ^^ str ":" ^^ pp_pred p ^^ str "}"
   | T_Arrow (v, t, t') -> str v ^^ str ":" ^^ pp_ty t ^^ str "->" ^^ pp_ty t'
 
 let rec pp_expr (ast : program) : PPrint.document =
@@ -54,6 +55,8 @@ let rec pp_expr (ast : program) : PPrint.document =
   | E_Let (v, e1, e2) ->
       str "let " ^^ str v ^^ str "." ^^ pp_expr e1 ^^ str "in" ^^ pp_expr e2
   | E_Ann (e, t) -> pp_expr e ^^ str ":" ^^ pp_ty t
+  | E_True -> str "true"
+  | E_False -> str "false"
 
 let dbg d : unit =
   let ch = stdout in

@@ -6,9 +6,9 @@
 %token <string> VAR
 %token PLUS MINUS TIMES DIV AND OR NEG DOT
 %token LPAREN RPAREN LBRACK RBRACK COLON COMMA RARROW
-%token FN LET IN
-%token TRUE FALSE EQ NEQ GE GT LE LT
-%token INT
+%token FN LET IN E_TRUE E_FALSE
+%token L_TRUE L_FALSE EQ NEQ GE GT LE LT
+%token INT BOOL
 %token EOF
 %left OR         /* for associative tokens: precedence increases downwards */
 %left AND
@@ -29,6 +29,8 @@ program:
   | expr  { $1 }
 
 expr:
+  | E_TRUE { Ast.E_True }
+  | E_FALSE { Ast.E_False }
   | VAR { Ast.E_Var $1 }
   | NAT { Ast.E_Const $1 }
   | LPAREN FN VAR DOT expr RPAREN
@@ -38,6 +40,7 @@ expr:
     { Ast.E_Let ($2, $4, $6) }
   | expr COLON ty
     { Ast.E_Ann ($1, $3) }
+  | LPAREN expr RPAREN { $2 }
 
 param:
   | VAR COLON ty { ($1, $3) }
@@ -46,8 +49,8 @@ pred:
   | VAR { Logic.P_Var $1 }
   | NAT { Logic.P_Int $1 }
   /* base logic */
-  | TRUE { Logic.P_True }
-  | FALSE { Logic.P_False }
+  | L_TRUE { Logic.P_True }
+  | L_FALSE { Logic.P_False }
   | pred AND pred { Logic.P_Conj ($1, $3) }
   | pred OR pred { Logic.P_Disj ($1, $3) }
   | NEG pred { Logic.P_Neg $2 }
@@ -68,6 +71,7 @@ ty1:
 
 base_ty:
   | INT { Ast.B_Int }
+  | BOOL { Ast.B_Bool }
 
 ty:
   /* | base_ty */

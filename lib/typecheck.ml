@@ -25,7 +25,8 @@ let rec lookup (g : env) (v : A.var) : A.ty option =
   | E_Empty -> None
   | E_Cons (v', t', g') -> if String.equal v' v then Some t' else lookup g' v
 
-let ty_to_sort (t : A.base_ty) = match t with A.B_Int -> L.S_Int
+let ty_to_sort (t : A.base_ty) =
+  match t with A.B_Int -> L.S_Int | A.B_Bool -> L.S_Bool
 
 let implication (x : A.var) (t : A.ty) (c : L.constraint_) : L.constraint_ =
   match t with
@@ -48,7 +49,7 @@ let rec sub (s : A.ty) (t : A.ty) : L.constraint_ =
       | T_Refined (b', v2, p2) ->
           if b != b' then
             raise (Subtyping_error "Refined types have different base types")
-          else (v1, L.S_Int, p1) ==> L.C_Pred (L.substitute_pred p2 v2 v1)
+          else (v1, ty_to_sort b, p1) ==> L.C_Pred (L.substitute_pred p2 v2 v1)
       | T_Arrow _ -> raise (Subtyping_error "Expected refined type"))
   | T_Arrow (x1, s1, t1) -> (
       match t with
@@ -93,10 +94,19 @@ and synth (g : env) (e : A.expr) : L.constraint_ * A.ty =
         A.T_Refined (A.B_Int, "v", L.P_Op (L.O_Eq, L.P_Var "v", L.P_Int c))
       in
       (L.C_Pred L.P_True, t)
+  | E_True ->
+      let t = A.T_Refined (A.B_Bool, "v", L.P_Var "v") in
+      (L.C_Pred L.P_True, t)
+  | E_False ->
+      let t = A.T_Refined (A.B_Bool, "v", P_Neg (L.P_Var "v")) in
+      (L.C_Pred L.P_True, t)
   | E_Var v -> (
       match lookup g v with
       | Some t -> (L.C_Pred L.P_True, t)
-      | None -> raise (Synthesis_error "Could not lookup var in type env"))
+      | None ->
+          raise
+            (Synthesis_error
+               ("Could not lookup var '" ^ pp_program e ^ "' in type env")))
   | E_App (e, y) -> (
       match synth g e with
       | c, T_Arrow (x, s, t) ->
