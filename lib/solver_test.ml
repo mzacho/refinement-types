@@ -24,6 +24,15 @@ let%test "Check ~(1 = 0)" =
   let c = C_Pred (P_Neg (P_Op (O_Eq, one, zero))) in
   check c
 
+let%test "Check (1 - 0) >= 0 ∧ (True ∨ False)" =
+  let c =
+    C_Pred
+      (P_Conj
+         ( P_Op (O_Ge, P_Op (O_Sub, one, zero), P_Int 0),
+           P_Disj (P_True, P_False) ))
+  in
+  check c
+
 (* Implications *)
 
 (* Ex falso: forall x:int. false => 1 = 0 *)

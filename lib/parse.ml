@@ -1,3 +1,5 @@
+[@@@coverage exclude_file]
+
 type 'a start = Program : Ast.program start | Type : Ast.ty start
 
 let parse' name lexbuf start =

@@ -41,7 +41,7 @@ let rec substitute_type (t : A.ty) (y : A.var) (z : A.var) : A.ty =
       if String.equal v y then T_Arrow (v, substitute_type s y z, t)
       else T_Arrow (v, substitute_type s y z, substitute_type t y z)
 
-let rec sub (s : A.ty) (t : A.ty) =
+let rec sub (s : A.ty) (t : A.ty) : L.constraint_ =
   match s with
   | T_Refined (b, v1, p1) -> (
       match t with
