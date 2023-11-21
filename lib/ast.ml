@@ -11,6 +11,7 @@ type expr =
   | E_Abs of var * expr
   | E_App of expr * var
   | E_Let of var * expr * expr
+  | E_RLet of var * expr * expr
   | E_Ann of expr * ty
   | E_True
   | E_False
