@@ -72,31 +72,12 @@ let rec fresh_var (g : env) (suffix_candidate : int) : A.var =
   | None -> var_cand
   | Some _ -> fresh_var g (suffix_candidate + 1)
 
-let rec occurs_free_p (v : L.var) (p : L.pred) : bool =
-  match p with
-  | P_True | P_False | P_Int _ -> false
-  | P_Var v' -> v == v'
-  | P_Op (_, p1, p2) -> occurs_free_p v p1 || occurs_free_p v p2
-  | P_Disj (p1, p2) -> occurs_free_p v p1 || occurs_free_p v p2
-  | P_Conj (p1, p2) -> occurs_free_p v p1 || occurs_free_p v p2
-  | P_Neg p' -> occurs_free_p v p'
-
-let rec occurs_free_c (v : L.var) (c : L.constraint_)
-    (observed_binders : A.var list) : bool =
-  match c with
-  | C_Conj (c1, c2) ->
-      occurs_free_c v c1 observed_binders || occurs_free_c v c2 observed_binders
-  | C_Pred p -> occurs_free_p v p
-  | C_Implication (v', _, p, c') ->
-      v' != v
-      && (occurs_free_p v p || occurs_free_c v c' (v' :: observed_binders))
-
 (* see ENT-EXT *)
 let rec close (g : env) (c : L.constraint_) : L.constraint_ =
   match g with
   | E_Cons (x, (T_Refined _ as t), g') ->
       let c' = close g' c in
-      if occurs_free_c x c [] then implication x t c' else c'
+      if L.occurs_free_c x c [] then implication x t c' else c'
   | _ -> c
 
 let rec check' (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
