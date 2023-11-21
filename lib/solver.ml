@@ -1,6 +1,8 @@
 open Logic
 open Z3
 
+exception Constraint_not_closed of string
+
 (*
   To check a constraint c = forall x. p => c' where there may be many nested forall implications:
   1. Make all forall binders unique in c
@@ -53,10 +55,14 @@ let check (c : constraint_) =
     in
     b_exp_c c
   in
-  let c' = uniqueify_binders c in
-  let formula = Boolean.mk_not ctx (build_expr c') in
-  let solver = Solver.mk_solver ctx None in
-  match Solver.check solver [ formula ] with
-  | Solver.SATISFIABLE -> false
-  | Solver.UNSATISFIABLE -> true
-  | Solver.UNKNOWN -> failwith "Z3 returned unknown"
+
+  let fv = Logic.collect_fv_c c in
+  if fv != [] then raise (Constraint_not_closed (String.concat "," fv))
+  else
+    let c' = uniqueify_binders c in
+    let formula = Boolean.mk_not ctx (build_expr c') in
+    let solver = Solver.mk_solver ctx None in
+    match Solver.check solver [ formula ] with
+    | Solver.SATISFIABLE -> false
+    | Solver.UNSATISFIABLE -> true
+    | Solver.UNKNOWN -> failwith "Z3 returned unknown"

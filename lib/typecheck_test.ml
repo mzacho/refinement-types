@@ -28,7 +28,9 @@ let%test "Integer identity function typechecks" =
   let e = Parse.string_to_program "(fn x. x)" in
   let g = Typecheck.E_Empty in
   let t = Parse.string_to_type "x:int{v: True} -> int{v: True}" in
-  Solver.check (Typecheck.check g e t)
+  let c = Typecheck.check g e t in
+  (* dbg @@ pp_constraint c; *)
+  Solver.check c
 
 let%test "Fail when trying to check an abstraction against an int" =
   let e = Parse.string_to_program "(fn x. x)" in
