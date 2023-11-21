@@ -46,11 +46,23 @@ let%test "plus x y" =
         E_Const 43,
         E_Let (y', E_Const 10, E_App (E_App (E_Var "add", "x"), "y")) )
 
+let int' = T_Refined (B_Int, "x", P_True)
+let arrow = T_Arrow ("x", int', int')
+
+let%test "let rec expression" =
+  string_to_program
+    "let rec f = (fn x. x) : x:int{x: True} -> int{x: True} in 1"
+  = E_RLet ("f", E_Abs (x', x), arrow, l)
+
+let%test "let rec expression annotated" =
+  string_to_program
+    "let rec f = (fn x. x) : x:int{x: True} -> int{x: True} : x:int{x: True} \
+     -> int{x: True} in 1"
+  = E_RLet ("f", E_Ann (E_Abs (x', x), arrow), arrow, l)
+
 (* Refined types *)
 
-let int' = T_Refined (B_Int, "x", P_True)
 let%test _ = string_to_type "int{x: True}" = int'
-let arrow = T_Arrow ("x", int', int')
 let%test "function type" = string_to_type "x:int{x: True}->int{x: True}" = arrow
 
 let%test "annotated expression" =
