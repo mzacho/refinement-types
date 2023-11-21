@@ -1,4 +1,4 @@
-open Pp
+(* open Pp *)
 
 (* Subtyping tests *)
 let%test "Fail subtyping: int <: (int -> int)" =
@@ -134,5 +134,5 @@ let%test "If-then-else checks (with path-dependency)" =
   let g = Typecheck.E_Empty in
   let t = Parse.string_to_type "int{n: n = 1}" in
   let c = Typecheck.check g e t in
-  dbg @@ pp_constraint c;
+  (*  dbg @@ pp_constraint c; *)
   Solver.check c

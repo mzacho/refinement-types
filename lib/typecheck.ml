@@ -67,20 +67,40 @@ let self (v : A.var) (t : A.ty) : A.ty =
   | T_Arrow _ -> t
 
 let rec fresh_var (g : env) (suffix_candidate : int) : A.var =
-  let var_cand = "f" ^ Printf.sprintf "%d" suffix_candidate in
+  let var_cand = "fr" ^ Printf.sprintf "%d" suffix_candidate in
   match lookup g var_cand with
   | None -> var_cand
   | Some _ -> fresh_var g (suffix_candidate + 1)
+
+let rec occurs_free_p (v : L.var) (p : L.pred) : bool =
+  match p with
+  | P_True | P_False | P_Int _ -> false
+  | P_Var v' -> v == v'
+  | P_Op (_, p1, p2) -> occurs_free_p v p1 || occurs_free_p v p2
+  | P_Disj (p1, p2) -> occurs_free_p v p1 || occurs_free_p v p2
+  | P_Conj (p1, p2) -> occurs_free_p v p1 || occurs_free_p v p2
+  | P_Neg p' -> occurs_free_p v p'
+
+let rec occurs_free_c (v : L.var) (c : L.constraint_)
+    (observed_binders : A.var list) : bool =
+  match c with
+  | C_Conj (c1, c2) ->
+      occurs_free_c v c1 observed_binders || occurs_free_c v c2 observed_binders
+  | C_Pred p -> occurs_free_p v p
+  | C_Implication (v', _, p, c') ->
+      v' != v
+      && (occurs_free_p v p || occurs_free_c v c' (v' :: observed_binders))
 
 (* see ENT-EXT *)
 let rec close (g : env) (c : L.constraint_) : L.constraint_ =
   match g with
   | E_Cons (x, (T_Refined _ as t), g') ->
       let c' = close g' c in
-      implication x t c'
+      if occurs_free_c x c [] then implication x t c' else c'
   | _ -> c
 
 let rec check' (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
+  (* returned constraints are not necessarily closed wrt. g *)
   let _ =
     if !debug then (
       print "check'";
@@ -101,11 +121,11 @@ let rec check' (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
   | E_If (x, e1, e2) ->
       let y = fresh_var g 0 in
       let c0 = check' g (A.E_Var x) (T_Refined (B_Bool, "b", L.P_True)) in
-      let c1 = check' ((y, T_Refined (B_Int, y, L.P_Var x)) >: g) e1 ty in
-      let c2 =
-        check' ((y, T_Refined (B_Int, y, L.P_Neg (L.P_Var x))) >: g) e2 ty
-      in
-      L.C_Conj (c0, L.C_Conj (c1, c2))
+      let yt1 = A.T_Refined (B_Int, y, L.P_Var x) in
+      let c1 = check' ((y, yt1) >: g) e1 ty in
+      let yt2 = A.T_Refined (B_Int, y, L.P_Neg (L.P_Var x)) in
+      let c2 = check' ((y, yt2) >: g) e2 ty in
+      L.C_Conj (c0, L.C_Conj (implication y yt1 c1, implication y yt2 c2))
   | e ->
       let c, s = synth g e in
       let c' = sub s ty in
@@ -149,4 +169,5 @@ and synth (g : env) (e : A.expr) : L.constraint_ * A.ty =
         (Synthesis_error ("Could not synthesize expression: " ^ pp_program e))
 
 and check (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
+  (* returned constraints are closed wrt. g *)
   close g (check' g e ty)
