@@ -96,6 +96,12 @@ let rec check' (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
       let c1, t1 = synth g e1 in
       let c2 = check' ((x, t1) >: g) e2 ty in
       L.C_Conj (c1, implication x t1 c2)
+  | E_RLet (x, e1, t1, e2) ->
+      let g1 = (x, t1) >: g in
+      (* NOTE: Fig. 4.5 in RTT has a typo, e1 should be checked againts t1, see fig. 4.2 *)
+      let c1 = check g1 e1 t1 in
+      let c2 = check g1 e2 ty in
+      L.C_Conj (c1, c2)
   | E_Abs (x, e) -> (
       match ty with
       | A.T_Arrow (_, s, t) ->
