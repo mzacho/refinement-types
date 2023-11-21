@@ -10,6 +10,7 @@ open Logic
 (*   let ast = string_to_type s in *)
 (*   pp_type ast *)
 
+let%test "false" = string_to_program "false" = E_False
 let%test "const" = string_to_program "0" = E_Const 0
 let%test "var" = string_to_program "x" = E_Var "x"
 let%test "fun abs" = string_to_program "(fn x. x)" = E_Abs ("x", E_Var "x")
