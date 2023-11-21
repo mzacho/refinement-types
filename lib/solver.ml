@@ -7,7 +7,7 @@ open Z3
   2. Because all binders are unique, we can move all the forall quantifiers to the top
   3. Now c = forall x0, x1, ..., xn . p => c'
   4. It suffices to check that there are no satisfying assignments of ~ (p => c')
-  NOTE: Assume that c is well-formed/ well-sorted, with respect to logical predicates *)
+  NOTE: Assume that c is closed under Γ, well-formed/ well-sorted, with respect to logical predicates *)
 let check (c : constraint_) =
   let ctx = mk_context [] in
   (* m keeps track of mapping between (our) variables and z3 variables *)
@@ -34,10 +34,7 @@ let check (c : constraint_) =
   let build_expr (c : constraint_) =
     let rec b_exp_p (p : pred) =
       match p with
-      | P_Var v ->
-          (* TODO: Variables appearing in predicates should maybe be tagged with their sort? For now, only integers *)
-          add_var v S_Int;
-          Hashtbl.find m v
+      | P_Var v -> Hashtbl.find m v
       | P_True -> Boolean.mk_true ctx
       | P_False -> Boolean.mk_false ctx
       | P_Int i -> Arithmetic.Integer.mk_numeral_i ctx i
