@@ -34,7 +34,8 @@ let pp_sort (s : sort) : PPrint.document =
 let rec pp_constraint (c : constraint_) : PPrint.document =
   match c with
   | C_Pred p -> pp_pred p
-  | C_Conj (c1, c2) -> pp_constraint c1 ^^ str " ∧ " ^^ pp_constraint c2
+  | C_Conj (c1, c2) ->
+      str "(" ^^ pp_constraint c1 ^^ str " ∧ " ^^ pp_constraint c2 ^^ str ")"
   | C_Implication (v, s, p, c) ->
       str "∀" ^^ str v ^^ str ": " ^^ pp_sort s ^^ str ". " ^^ pp_pred p
       ^^ str " ⇒ " ^^ pp_constraint c
@@ -57,6 +58,9 @@ let rec pp_expr (ast : program) : PPrint.document =
   | E_Ann (e, t) -> pp_expr e ^^ str ":" ^^ pp_ty t
   | E_True -> str "true"
   | E_False -> str "false"
+  | E_If (v, then_br, else_br) ->
+      str "if " ^^ str v ^^ str " then " ^^ pp_expr then_br ^^ str " else "
+      ^^ pp_expr else_br
 
 let dbg d : unit =
   let ch = stdout in

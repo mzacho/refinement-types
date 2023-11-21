@@ -14,5 +14,6 @@ type expr =
   | E_Ann of expr * ty
   | E_True
   | E_False
+  | E_If of var * expr * expr
 
 type program = expr
