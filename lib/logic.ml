@@ -86,3 +86,22 @@ let uniqueify_binders (c : constraint_) : constraint_ =
     | _ -> c
   in
   uniqueify_c c
+
+let rec occurs_free_p (v : var) (p : pred) : bool =
+  match p with
+  | P_True | P_False | P_Int _ -> false
+  | P_Var v' -> v == v'
+  | P_Op (_, p1, p2) -> occurs_free_p v p1 || occurs_free_p v p2
+  | P_Disj (p1, p2) -> occurs_free_p v p1 || occurs_free_p v p2
+  | P_Conj (p1, p2) -> occurs_free_p v p1 || occurs_free_p v p2
+  | P_Neg p' -> occurs_free_p v p'
+
+let rec occurs_free_c (v : var) (c : constraint_) (observed_binders : var list)
+    : bool =
+  match c with
+  | C_Conj (c1, c2) ->
+      occurs_free_c v c1 observed_binders || occurs_free_c v c2 observed_binders
+  | C_Pred p -> occurs_free_p v p
+  | C_Implication (v', _, p, c') ->
+      v' != v
+      && (occurs_free_p v p || occurs_free_c v c' (v' :: observed_binders))
