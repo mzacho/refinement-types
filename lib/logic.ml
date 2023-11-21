@@ -87,21 +87,23 @@ let uniqueify_binders (c : constraint_) : constraint_ =
   in
   uniqueify_c c
 
-let rec occurs_free_p (v : var) (p : pred) : bool =
+let rec collect_fv_p (p : pred) : var list =
   match p with
-  | P_True | P_False | P_Int _ -> false
-  | P_Var v' -> v == v'
-  | P_Op (_, p1, p2) -> occurs_free_p v p1 || occurs_free_p v p2
-  | P_Disj (p1, p2) -> occurs_free_p v p1 || occurs_free_p v p2
-  | P_Conj (p1, p2) -> occurs_free_p v p1 || occurs_free_p v p2
-  | P_Neg p' -> occurs_free_p v p'
+  | P_True | P_False | P_Int _ -> []
+  | P_Var v -> [ v ]
+  | P_Op (_, p1, p2) -> collect_fv_p p1 @ collect_fv_p p2
+  | P_Disj (p1, p2) -> collect_fv_p p1 @ collect_fv_p p2
+  | P_Conj (p1, p2) -> collect_fv_p p1 @ collect_fv_p p2
+  | P_Neg p' -> collect_fv_p p'
 
-let rec occurs_free_c (v : var) (c : constraint_) (observed_binders : var list)
-    : bool =
+let rec collect_fv_c (c : constraint_) : var list =
   match c with
-  | C_Conj (c1, c2) ->
-      occurs_free_c v c1 observed_binders || occurs_free_c v c2 observed_binders
-  | C_Pred p -> occurs_free_p v p
-  | C_Implication (v', _, p, c') ->
-      v' != v
-      && (occurs_free_p v p || occurs_free_c v c' (v' :: observed_binders))
+  | C_Conj (c1, c2) -> collect_fv_c c1 @ collect_fv_c c2
+  | C_Pred p -> collect_fv_p p
+  | C_Implication (v, _, p, c') ->
+      List.filter (fun x -> x <> v) (collect_fv_p p @ collect_fv_c c')
+
+let occurs_free_p (v : var) (p : pred) : bool = List.mem v (collect_fv_p p)
+
+let occurs_free_c (v : var) (c : constraint_) : bool =
+  List.mem v (collect_fv_c c)
