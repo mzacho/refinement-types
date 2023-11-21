@@ -38,6 +38,7 @@ rule token = parse
   | "->"           { RARROW }
   | "fn"           { FN }
   | "let"          { LET }
+  | "rec"          { REC }
   | "in"           { IN }
   | "True"         { L_TRUE }
   | "true"         { E_TRUE }

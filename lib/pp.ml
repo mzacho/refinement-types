@@ -54,6 +54,8 @@ let rec pp_expr (ast : program) : PPrint.document =
   | E_App (e, v) -> pp_expr e ^^ str " " ^^ str v
   | E_Let (v, e1, e2) ->
       str "let " ^^ str v ^^ str "." ^^ pp_expr e1 ^^ str "in" ^^ pp_expr e2
+  | E_RLet (v, e1, e2) ->
+      str "let rec " ^^ str v ^^ str "." ^^ pp_expr e1 ^^ str "in" ^^ pp_expr e2
   | E_Ann (e, t) -> pp_expr e ^^ str ":" ^^ pp_ty t
   | E_True -> str "true"
   | E_False -> str "false"
