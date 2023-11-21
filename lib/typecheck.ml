@@ -72,30 +72,38 @@ let rec fresh_var (g : env) (suffix_candidate : int) : A.var =
   | None -> var_cand
   | Some _ -> fresh_var g (suffix_candidate + 1)
 
-let rec check (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
+(* see ENT-EXT *)
+let rec close (g : env) (c : L.constraint_) : L.constraint_ =
+  match g with
+  | E_Cons (x, (T_Refined _ as t), g') ->
+      let c' = close g' c in
+      implication x t c'
+  | _ -> c
+
+let rec check' (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
   let _ =
     if !debug then (
-      print "check";
+      print "check'";
       dbg @@ pp_expr e;
       dbg @@ pp_ty ty)
   in
   match e with
   | E_Let (x, e1, e2) ->
       let c1, t1 = synth g e1 in
-      let c2 = check ((x, t1) >: g) e2 ty in
+      let c2 = check' ((x, t1) >: g) e2 ty in
       L.C_Conj (c1, implication x t1 c2)
   | E_Abs (x, e) -> (
       match ty with
       | A.T_Arrow (_, s, t) ->
-          let c = check ((x, s) >: g) e t in
+          let c = check' ((x, s) >: g) e t in
           implication x s c
       | _ -> raise (Invalid_arrow_type "Expected arrow type on E_Abs"))
   | E_If (x, e1, e2) ->
       let y = fresh_var g 0 in
-      let c0 = check g (A.E_Var x) (T_Refined (B_Bool, "b", L.P_True)) in
-      let c1 = check ((y, T_Refined (B_Int, y, L.P_Var x)) >: g) e1 ty in
+      let c0 = check' g (A.E_Var x) (T_Refined (B_Bool, "b", L.P_True)) in
+      let c1 = check' ((y, T_Refined (B_Int, y, L.P_Var x)) >: g) e1 ty in
       let c2 =
-        check ((y, T_Refined (B_Int, y, L.P_Neg (L.P_Var x))) >: g) e2 ty
+        check' ((y, T_Refined (B_Int, y, L.P_Neg (L.P_Var x))) >: g) e2 ty
       in
       L.C_Conj (c0, L.C_Conj (c1, c2))
   | e ->
@@ -131,11 +139,14 @@ and synth (g : env) (e : A.expr) : L.constraint_ * A.ty =
   | E_App (e, y) -> (
       match synth g e with
       | c, T_Arrow (x, s, t) ->
-          let c' = check g (A.E_Var y) s in
+          let c' = check' g (A.E_Var y) s in
           (L.C_Conj (c, c'), substitute_type t x y)
       | _, T_Refined _ ->
           raise (Synthesis_error "Expected exp to synthesize to arrow type"))
-  | E_Ann (e, t) -> (check g e t, t)
+  | E_Ann (e, t) -> (check' g e t, t)
   | _ ->
       raise
         (Synthesis_error ("Could not synthesize expression: " ^ pp_program e))
+
+and check (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
+  close g (check' g e ty)

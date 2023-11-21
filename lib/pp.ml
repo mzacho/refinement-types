@@ -37,7 +37,7 @@ let rec pp_constraint (c : constraint_) : PPrint.document =
   | C_Conj (c1, c2) ->
       str "(" ^^ pp_constraint c1 ^^ str " ∧ " ^^ pp_constraint c2 ^^ str ")"
   | C_Implication (v, s, p, c) ->
-      str "∀" ^^ str v ^^ str ": " ^^ pp_sort s ^^ str ". " ^^ pp_pred p
+      str "∀" ^^ str v ^^ str ":" ^^ pp_sort s ^^ str ". " ^^ pp_pred p
       ^^ str " ⇒ " ^^ pp_constraint c
 
 let rec pp_ty (t : ty) : PPrint.document =
