@@ -38,8 +38,8 @@ expr:
   | expr VAR { Ast.E_App ($1, $2) }
   | LET VAR EQ expr IN expr
     { Ast.E_Let ($2, $4, $6) }
-  | LET REC VAR EQ expr IN expr
-    { Ast.E_RLet ($3, $5, $7) }
+  | LET REC VAR EQ expr COLON ty IN expr
+    { Ast.E_RLet ($3, $5, $7, $9) }
   | expr COLON ty
     { Ast.E_Ann ($1, $3) }
   | IF VAR THEN expr ELSE expr { Ast.E_If ($2, $4, $6) }
