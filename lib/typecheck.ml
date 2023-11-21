@@ -81,7 +81,7 @@ let rec close (g : env) (c : L.constraint_) : L.constraint_ =
   | _ -> c
 
 let rec check' (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
-  (* returned constraints are not necessarily closed wrt. g *)
+  (* returned constraints are not necessarily closed *)
   let _ =
     if !debug then (
       print "check'";
@@ -150,5 +150,5 @@ and synth (g : env) (e : A.expr) : L.constraint_ * A.ty =
         (Synthesis_error ("Could not synthesize expression: " ^ pp_program e))
 
 and check (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
-  (* returned constraints are closed wrt. g *)
+  (* returned constraints are closed *)
   close g (check' g e ty)
