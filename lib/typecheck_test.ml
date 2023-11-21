@@ -1,3 +1,5 @@
+open Pp
+
 (* Subtyping tests *)
 let%test "Fail subtyping: int <: (int -> int)" =
   let t = Parse.string_to_type "int{v: False}" in
@@ -126,3 +128,11 @@ let%test "42 + 10 checks with precice refined type" =
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{z: z = 52}" in
   Solver.check (Typecheck.check g e t)
+
+let%test "If-then-else checks (with path-dependency)" =
+  let e = Parse.string_to_program "let x = true in (if x then 1 else 0)" in
+  let g = Typecheck.E_Empty in
+  let t = Parse.string_to_type "int{n: n = 1}" in
+  let c = Typecheck.check g e t in
+  dbg @@ pp_constraint c;
+  Solver.check c

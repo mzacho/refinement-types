@@ -45,5 +45,8 @@ rule token = parse
   | "false"        { E_FALSE }
   | "int"          { INT }
   | "bool"         { BOOL }
+  | "if"           { IF }
+  | "then"         { THEN }
+  | "else"         { ELSE }
   | name as s      { VAR s }
   | eof { EOF }

@@ -6,7 +6,7 @@
 %token <string> VAR
 %token PLUS MINUS TIMES DIV AND OR NEG DOT
 %token LPAREN RPAREN LBRACK RBRACK COLON COMMA RARROW
-%token FN LET IN E_TRUE E_FALSE
+%token FN LET IN E_TRUE E_FALSE IF THEN ELSE
 %token L_TRUE L_FALSE EQ NEQ GE GT LE LT
 %token INT BOOL
 %token EOF
@@ -40,6 +40,7 @@ expr:
     { Ast.E_Let ($2, $4, $6) }
   | expr COLON ty
     { Ast.E_Ann ($1, $3) }
+  | IF VAR THEN expr ELSE expr { Ast.E_If ($2, $4, $6) }
   | LPAREN expr RPAREN { $2 }
 
 param:

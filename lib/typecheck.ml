@@ -59,6 +59,19 @@ let rec sub (s : A.ty) (t : A.ty) : L.constraint_ =
           L.C_Conj (ci, implication x2 s2 co)
       | T_Refined _ -> raise (Subtyping_error "Expected arrow type"))
 
+(* selfification, see Section 4 *)
+let self (v : A.var) (t : A.ty) : A.ty =
+  match t with
+  | T_Refined (b, v', p) ->
+      T_Refined (b, v', L.P_Conj (p, L.P_Op (O_Eq, P_Var v, P_Var v')))
+  | T_Arrow _ -> t
+
+let rec fresh_var (g : env) (suffix_candidate : int) : A.var =
+  let var_cand = "f" ^ Printf.sprintf "%d" suffix_candidate in
+  match lookup g var_cand with
+  | None -> var_cand
+  | Some _ -> fresh_var g (suffix_candidate + 1)
+
 let rec check (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
   let _ =
     if !debug then (
@@ -77,6 +90,14 @@ let rec check (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
           let c = check ((x, s) >: g) e t in
           implication x s c
       | _ -> raise (Invalid_arrow_type "Expected arrow type on E_Abs"))
+  | E_If (x, e1, e2) ->
+      let y = fresh_var g 0 in
+      let c0 = check g (A.E_Var x) (T_Refined (B_Bool, "b", L.P_True)) in
+      let c1 = check ((y, T_Refined (B_Int, y, L.P_Var x)) >: g) e1 ty in
+      let c2 =
+        check ((y, T_Refined (B_Int, y, L.P_Neg (L.P_Var x))) >: g) e2 ty
+      in
+      L.C_Conj (c0, L.C_Conj (c1, c2))
   | e ->
       let c, s = synth g e in
       let c' = sub s ty in
@@ -102,7 +123,7 @@ and synth (g : env) (e : A.expr) : L.constraint_ * A.ty =
       (L.C_Pred L.P_True, t)
   | E_Var v -> (
       match lookup g v with
-      | Some t -> (L.C_Pred L.P_True, t)
+      | Some t -> (L.C_Pred L.P_True, self v t)
       | None ->
           raise
             (Synthesis_error
