@@ -26,7 +26,7 @@ let rec pp_pred (p : pred) : PPrint.document =
   | P_Op (op, p, p') -> pp_pred p ^^ pp_op op ^^ pp_pred p'
   | P_Disj (p, p') -> pp_pred p ^^ str " ∨ " ^^ pp_pred p'
   | P_Conj (p, p') -> pp_pred p ^^ str " ∧ " ^^ pp_pred p'
-  | P_Neg p -> str "~" ^^ pp_pred p
+  | P_Neg p -> str "¬" ^^ pp_pred p
 
 let pp_sort (s : sort) : PPrint.document =
   match s with S_Int -> str "ℤ" | S_Bool -> str "𝔹"
@@ -34,11 +34,10 @@ let pp_sort (s : sort) : PPrint.document =
 let rec pp_constraint (c : constraint_) : PPrint.document =
   match c with
   | C_Pred p -> pp_pred p
-  | C_Conj (c1, c2) ->
-      str "(" ^^ pp_constraint c1 ^^ str " ∧ " ^^ pp_constraint c2 ^^ str ")"
+  | C_Conj (c1, c2) -> pp_constraint c1 ^^ str " ∧ " ^^ pp_constraint c2
   | C_Implication (v, s, p, c) ->
-      str "∀" ^^ str v ^^ str ":" ^^ pp_sort s ^^ str ". " ^^ pp_pred p
-      ^^ str " ⇒ " ^^ pp_constraint c
+      str "(∀" ^^ str v ^^ str ":" ^^ pp_sort s ^^ str ". " ^^ pp_pred p
+      ^^ str " ⇒ " ^^ pp_constraint c ^^ str ")"
 
 let rec pp_ty (t : ty) : PPrint.document =
   match t with
