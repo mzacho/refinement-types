@@ -66,11 +66,14 @@ let self (v : A.var) (t : A.ty) : A.ty =
       T_Refined (b, v', L.P_Conj (p, L.P_Op (O_Eq, P_Var v, P_Var v')))
   | T_Arrow _ -> t
 
-let rec fresh_var (g : env) (suffix_candidate : int) : A.var =
-  let var_cand = "fr" ^ Printf.sprintf "%d" suffix_candidate in
-  match lookup g var_cand with
-  | None -> var_cand
-  | Some _ -> fresh_var g (suffix_candidate + 1)
+let fresh_var (g : env) : A.var =
+  let rec fresh_var' (suffix_candidate : int) =
+    let var_cand = "fr" ^ Printf.sprintf "%d" suffix_candidate in
+    match lookup g var_cand with
+    | None -> var_cand
+    | Some _ -> fresh_var' (suffix_candidate + 1)
+  in
+  fresh_var' 0
 
 (* see ENT-EXT *)
 let rec close (g : env) (c : L.constraint_) : L.constraint_ =
@@ -100,7 +103,7 @@ let rec check' (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
           implication x s c
       | _ -> raise (Invalid_arrow_type "Expected arrow type on E_Abs"))
   | E_If (x, e1, e2) ->
-      let y = fresh_var g 0 in
+      let y = fresh_var g in
       let c0 = check' g (A.E_Var x) (T_Refined (B_Bool, "b", L.P_True)) in
       let yt1 = A.T_Refined (B_Int, y, L.P_Var x) in
       let c1 = check' ((y, yt1) >: g) e1 ty in
