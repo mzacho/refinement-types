@@ -78,9 +78,7 @@ let fresh_var (g : env) : A.var =
 (* see ENT-EXT *)
 let rec close (g : env) (c : L.constraint_) : L.constraint_ =
   match g with
-  | E_Cons (x, (T_Refined _ as t), g') ->
-      let c' = close g' c in
-      if L.occurs_free_c x c then implication x t c' else c'
+  | E_Cons (x, (T_Refined _ as t), g') -> implication x t (close g' c)
   | _ -> c
 
 let rec check' (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
