@@ -177,20 +177,21 @@ let%test "If-then-else checks (with path-dependency)" =
   (*  dbg @@ pp_constraint c; *)
   Solver.check c
 
-let%test "And function" =
+let%test "And3 function" =
   let e =
     Parse.string_to_program
       {|
   let conj = ((fn a. (fn b. (if a then b else false))):a:bool{v:True} -> b:bool{v:True} -> bool{v:v=(a&b)}) in
+  let conjThree = (((fn a. (fn b. (fn c. (let x = (conj a b) in (conj x c)))))):a:bool{v:True} -> b:bool{v:True} -> c:bool{v:True} -> bool{v:v=(a & b & c)}) in
   let t = true in
-  conj t t
+  conjThree t t t
     |}
   in
   let g = Typecheck.E_Empty in
   let t = Parse.string_to_type "bool{b: b = True}" in
   Solver.check (Typecheck.check g e t)
 
-let%test "And function" =
+let%test "Or function" =
   let e =
     Parse.string_to_program
       {|
