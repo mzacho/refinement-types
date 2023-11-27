@@ -53,6 +53,12 @@ let rec pp_ty (t : ty) : PPrint.document =
       base_ty ^^ str "{" ^^ str v ^^ str ":" ^^ pp_pred p ^^ str "}"
   | T_Arrow (v, t, t') -> str v ^^ str ":" ^^ pp_ty t ^^ str "->" ^^ pp_ty t'
 
+let rec pp_metric (m : metric) : PPrint.document =
+  match m with
+  | [] -> str ""
+  | p :: [] -> pp_pred p
+  | p :: m' -> pp_pred p ^^ str ", " ^^ pp_metric m'
+
 let rec pp_expr' (e : expr) : PPrint.document =
   match e with
   | E_Const n -> int n
@@ -61,9 +67,9 @@ let rec pp_expr' (e : expr) : PPrint.document =
   | E_App (e, v) -> pp_expr' e ^^ str " " ^^ str v
   | E_Let (v, e1, e2) ->
       str "let " ^^ str v ^^ str "." ^^ pp_expr' e1 ^^ str "in" ^^ pp_expr' e2
-  | E_RLet (v, e1, t, e2) ->
+  | E_RLet (v, e1, t, m, e2) ->
       str "let rec " ^^ str v ^^ str "." ^^ pp_expr' e1 ^^ str ":" ^^ pp_ty t
-      ^^ str "in" ^^ pp_expr' e2
+      ^^ str " / " ^^ pp_metric m ^^ str "in" ^^ pp_expr' e2
   | E_Ann (e, t) -> pp_expr' e ^^ str ":" ^^ pp_ty t
   | E_True -> str "true"
   | E_False -> str "false"
