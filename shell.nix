@@ -15,6 +15,7 @@ pkgs.mkShell {
     z3
 
     # Ocaml
+    ocamlformat
     ocamlPackages.ocaml
     ocamlPackages.dune_3
     ocamlPackages.findlib
