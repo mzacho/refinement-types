@@ -125,13 +125,13 @@ let%test "Let exp checks (bool)" =
   Solver.check (Typecheck.check g e t)
 
 let%test "Let rec exp with no recursion checks" =
-  let e = Parse.string_to_expr "let rec x = 42 : int{x: x = 42} in x" in
+  let e = Parse.string_to_expr "let rec x = 42 : int{x: x = 42} / 0  in x" in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: v = 42}" in
   Solver.check (Typecheck.check g e t)
 
 let%test "Let rec exp with recursive definition checks" =
-  let e = Parse.string_to_expr "let rec x = x : int{x: x = 42} in x" in
+  let e = Parse.string_to_expr "let rec x = x : int{x: x = 42} / 0 in x" in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: v = 42}" in
   Solver.check (Typecheck.check g e t)
@@ -145,7 +145,8 @@ let%test "Regular let exp with recursion fails" =
 
 let%test "Let rec exp w/ recursive def. and annotation checks" =
   let e =
-    Parse.string_to_expr "let rec x = x : int{x: x = 42} : int{x: x = 42} in x"
+    Parse.string_to_expr
+      "let rec x = x : int{x: x = 42} : int{x: x = 42} / 0 in x"
   in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: v = 42}" in
@@ -155,7 +156,7 @@ let%test "Let rec exp with recursive fun checks (infinite recursion)" =
   let e =
     Parse.string_to_expr
       "let one = 1 in let rec f = (fn x. f x) : x:int{x: True} -> int{v: v = \
-       42} in f one"
+       42} / 0 in f one"
   in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: v = 42}" in
