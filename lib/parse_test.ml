@@ -50,14 +50,15 @@ let int' = T_Refined (B_Int, "x", P_True)
 let arrow = T_Arrow ("x", int', int')
 
 let%test "let rec expression" =
-  string_to_expr "let rec f = (fn x. x) : x:int{x: True} -> int{x: True} in 1"
-  = E_RLet ("f", E_Abs (x', x), arrow, l)
+  string_to_expr
+    "let rec f = (fn x. x) : x:int{x: True} -> int{x: True} / x in 1"
+  = E_RLet ("f", E_Abs (x', x), arrow, [P_Var x'],  l)
 
 let%test "let rec expression annotated" =
   string_to_expr
     "let rec f = (fn x. x) : x:int{x: True} -> int{x: True} : x:int{x: True} \
-     -> int{x: True} in 1"
-  = E_RLet ("f", E_Ann (E_Abs (x', x), arrow), arrow, l)
+     -> int{x: True} / x in 1"
+  = E_RLet ("f", E_Ann (E_Abs (x', x), arrow), arrow, [P_Var x'], l)
 
 (* Refined types *)
 
