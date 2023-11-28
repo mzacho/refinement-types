@@ -59,6 +59,7 @@ let base_env =
      >: E_Empty)
 
 exception Invalid_arrow_type of string
+exception Invalid_abs_expression of string
 exception Synthesis_error of string
 exception Subtyping_error of string
 exception Switch_error of string
@@ -264,11 +265,11 @@ let check ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
                "Attempted to bind a variable under the same identifier as a \
                 data constructor (let-rec)")
         else
+          let (t1, c1) = check_termination g x e1 s1 m in
           let g1 = (x, t1) >: g in
           (* NOTE: Fig. 4.5 in RTT has a typo, e1 should be checked againts t1, see fig. 4.2 *)
-          let c1 = check' g1 e1 t1 in
-          let c2 = check' g1 e2 ty in
-          L.C_Conj (c1, c2)
+          let c2 = check g1 e2 ty in
+          L.C_Conj (c1, implication x t1 c2)
     | E_Abs (x, e) -> (
         match ty with
         | A.T_Arrow (_, s, t) ->
@@ -338,6 +339,13 @@ let check ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
     | _ ->
         raise
           (Synthesis_error ("Could not synthesize expression: " ^ pp_expr e))
+  and check_termination (g : env) (x : A.var) (e : A.expr) (t : A.ty) (m : A.metric) : A.ty * L.constraint_ =
+    match e with
+    | A.E_Abs (y, e') -> (
+      match e' with
+        A.T_Arrow ()
+    )
+    | _ -> raise (Invalid_abs_expression "Expected E_Abs in checkT")
   in
   (* Check that the provided data environment is wellformed *)
   match check_data_env denv with
