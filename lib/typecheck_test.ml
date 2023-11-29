@@ -550,3 +550,12 @@ let%test "fold left add" =
   let t = Parse.string_to_type "xs:list{v: True} -> int{v: v = listsum(xs)}" in
   let c = Typecheck.check ~denv:list_data_env' Typecheck.base_env e t in
   Solver.check ~fs:[ listsum ] c
+
+(* ------------------------ termination ------------------------------- *)
+
+let%test "sum terminates" =
+  let e = Parse.string_to_program
+            "let rec sum = (fn x. let one = 1 in let b = (lt x) one in x): x:int{v:True} -> int{v:True} / x in let a = 10 in sum a" in
+  let g = Typecheck.base_env in
+  let t = Parse.string_to_type "int{v: True}" in
+  Solver.check (Typecheck.check g e t)
