@@ -59,6 +59,7 @@ let base_env =
      >: E_Empty)
 
 exception Invalid_arrow_type of string
+exception Invalid_abs_expression of string
 exception Synthesis_error of string
 exception Subtyping_error of string
 exception Switch_error of string
@@ -177,6 +178,31 @@ let close_data (denv : data_env) (c : L.constraint_) : L.constraint_ =
   in
   List.fold_left cls c denv
 
+let rec split_lambdas (e1, t1) : (A.var * A.ty) list * A.expr * A.ty =
+  match (e1, t1) with
+  | E_Abs (xa, e), T_Arrow (xt, t1, t2) ->
+      let ys', e', t' = split_lambdas (e, t2) in
+      (* sth. like this: *)
+      (ys' @ [ (xa, t1 [ xa / xt ]) ], e', t')
+      (* substitute xs/xt accordingly, look at example:
+         \x.\y.x+y : x':int -> y':int -> int[z|z=x'+y'], should return:
+         ([(x, int); (y, int)], x+y, int[z|z=x+y])
+      *)
+  | E_Abs _, T_Refined _ ->
+      raise
+        (Invalid_abs_expression
+           "Expected function type for E_Abs in split_lambdas")
+  | _, _ -> ([], e1, t1)
+
+let rec add_vars (g : env) (ys : (A.var * A.ty) list) : env =
+  match ys with [] -> g | (x, t) :: ys' -> add ((x, t) >: g, ys')
+
+(* g contains actual parameters of fn already, so fresh(g) doesn't clash
+   (TODO: maybe change fresh to accept a prefix so we don't lose the var name?) *)
+let rec limit_function (g : env) (m : A.metric) (ty : A.ty) : A.ty =
+  (* TODO *)
+  ty
+
 let rec meet (t1 : A.ty) (t2 : A.ty) : A.ty =
   match (t1, t2) with
   | A.T_Refined (b1, v1, p1), A.T_Refined (b2, v2, p2) ->
@@ -264,10 +290,12 @@ let check ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
                "Attempted to bind a variable under the same identifier as a \
                 data constructor (let-rec)")
         else
-          let g1 = (x, t1) >: g in
-          (* NOTE: Fig. 4.5 in RTT has a typo, e1 should be checked againts t1, see fig. 4.2 *)
-          let c1 = check g1 e1 t1 in
-          let c2 = check g1 e2 ty in
+          let ys, e1_body, t1_body = split_lambdas (e1, t1) in
+          let g' = add_vars (g, ys) in
+          (* check body of e1 with limited f *)
+          let c1 = check ((f, limit_function (g', m, t1)) >: g') e1_body t1_body in
+          (* check remaining e2 with non-limited f *)
+          let c2 = check ((f, t1) >: g') e2 ty in
           L.C_Conj (c1, c2)
     | E_Abs (x, e) -> (
         match ty with
