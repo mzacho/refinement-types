@@ -7,33 +7,33 @@ let z = "z"
 (* Predicate substitution tests *)
 
 (* Simple tests *)
-let%test "true[x := y] = true" = P_True = substitute_pred P_True x y
-let%test "false[x := y] = false" = P_False = substitute_pred P_False x y
-let%test "42[x := y] = 42" = P_Int 42 = substitute_pred (P_Int 42) x y
-let%test "x[x := y] = y" = P_Var y = substitute_pred (P_Var x) x y
-let%test "z[x := y] = z" = P_Var z = substitute_pred (P_Var z) x y
+let%test "true[x := y] = true" = P_True = substitute_pred x y P_True
+let%test "false[x := y] = false" = P_False = substitute_pred x y P_False
+let%test "42[x := y] = 42" = P_Int 42 = substitute_pred x y (P_Int 42)
+let%test "x[x := y] = y" = P_Var y = substitute_pred x y (P_Var x)
+let%test "z[x := y] = z" = P_Var z = substitute_pred x y (P_Var z)
 
 (* (x + z)[x := y] = y + z *)
 let%test "(x + z)[x := y] = y + z" =
   let p1 = P_Var x in
   let p2 = P_Var z in
-  P_Op (O_Add, P_Var y, p2) = substitute_pred (P_Op (O_Add, p1, p2)) x y
+  P_Op (O_Add, P_Var y, p2) = substitute_pred x y (P_Op (O_Add, p1, p2))
 
 (* (x \/ z)[x := y] = y \/ z *)
 let%test "(x \\/ z)[x := y] = y \\/ z" =
   let p1 = P_Var x in
   let p2 = P_Var z in
-  P_Disj (P_Var y, p2) = substitute_pred (P_Disj (p1, p2)) x y
+  P_Disj (P_Var y, p2) = substitute_pred x y (P_Disj (p1, p2))
 
 (* (x /\ z)[x := y] = y /\ z *)
 let%test "(x /\\ z)[x := y] = y /\\ z" =
   let p1 = P_Var x in
   let p2 = P_Var z in
-  P_Conj (P_Var y, p2) = substitute_pred (P_Conj (p1, p2)) x y
+  P_Conj (P_Var y, p2) = substitute_pred x y (P_Conj (p1, p2))
 
 (* (~ x)[x := y] = (~ y) *)
 let%test "(~ x)[x := y] = ~ y" =
-  P_Neg (P_Var y) = substitute_pred (P_Neg (P_Var x)) x y
+  P_Neg (P_Var y) = substitute_pred x y (P_Neg (P_Var x))
 
 (* Constraint substitution *)
 

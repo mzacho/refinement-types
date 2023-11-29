@@ -32,7 +32,7 @@ let ( ==> ) ((x, b, p) : var * sort * pred) (c : constraint_) =
 
   Substitute v2 for v1 in p
 *)
-let substitute_pred (p : pred) (v1 : var) (v2 : var) : pred =
+let substitute_pred (v1 : var) (v2 : var) (p : pred) : pred =
   let rec subst_p (p : pred) : pred =
     match p with
     | P_Var v when v = v1 -> P_Var v2
@@ -55,10 +55,10 @@ let substitute_constraint (c : constraint_) (v1 : var) (v2 : var) : constraint_
     =
   let rec subst_c (c : constraint_) : constraint_ =
     match c with
-    | C_Pred p -> C_Pred (substitute_pred p v1 v2)
+    | C_Pred p -> C_Pred (substitute_pred v1 v2 p)
     | C_Conj (c1, c2) -> C_Conj (subst_c c1, subst_c c2)
     | C_Implication (v, s, p, c') ->
-        if not (v = v1) then (v, s, substitute_pred p v1 v2) ==> subst_c c'
+        if not (v = v1) then (v, s, substitute_pred v1 v2 p) ==> subst_c c'
         else c
   in
   subst_c c
@@ -82,7 +82,7 @@ let uniqueify_binders (c : constraint_) : constraint_ =
         Hashtbl.replace m v i;
         let v' = rename v in
         (* Substitute v' for v in both predicate and constraint *)
-        let p' = substitute_pred p v v' in
+        let p' = substitute_pred v v' p in
         let c' = substitute_constraint c v v' in
         (v', s, p') ==> uniqueify_c c'
     | _ -> c

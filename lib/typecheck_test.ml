@@ -553,9 +553,16 @@ let%test "fold left add" =
 
 (* ------------------------ termination ------------------------------- *)
 
-let%test "sum terminates" =
-  let e = Parse.string_to_program
-            "let rec sum = (fn x. let one = 1 in let b = (lt x) one in x): x:int{v:True} -> int{v:True} / x in let a = 10 in sum a" in
+let%test "sum of nats terminates" =
+  let e =
+    Parse.string_to_expr
+      "let one = 1 in let rec sum = (fn x. (let b = (lt x) one in if b then 0 \
+       else let y = (sub x) one in let z = sum y in (add z) one)) : \
+       x:int{v:True} -> int{v:True} / x\n\
+      \             in let a = 10 in sum a"
+  in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: True}" in
-  Solver.check (Typecheck.check g e t)
+  let c = Typecheck.check g e t in
+  let _ = Pp.dbg @@ Pp.pp_constraint c in
+  Solver.check c

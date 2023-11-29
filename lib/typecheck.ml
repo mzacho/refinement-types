@@ -47,6 +47,7 @@ let build_data_env (tctor_decls : A.ty_ctor_decl list) =
   List.fold_left map_tctor_decl [] tctor_decls
 
 type env = E_Empty | E_Cons of (A.var * A.ty * env)
+type logic_env = (L.var * L.sort) list
 
 (* notation *)
 let ( >: ) (v, t) g = E_Cons (v, t, g)
@@ -62,13 +63,15 @@ let base_env =
               y))}" )
         >: E_Empty))
 
-exception Invalid_arrow_type of string
-exception Invalid_abs_expression of string
 exception Synthesis_error of string
 exception Subtyping_error of string
+
+exception Invalid_arrow_type of string
+exception Invalid_abs_expression of string
 exception Switch_error of string
 exception Data_env_illformed_error of string
 exception Bind_error of string
+exception Termination_error of string
 
 let debug = ref false
 
@@ -116,17 +119,23 @@ let ty_to_sort (t : A.base_ty) =
 
 let implication (x : A.var) (t : A.ty) (c : L.constraint_) : L.constraint_ =
   match t with
-  | A.T_Refined (bt, v, p) -> (x, ty_to_sort bt, L.substitute_pred p v x) ==> c
+  | A.T_Refined (bt, v, p) -> (x, ty_to_sort bt, L.substitute_pred v x p) ==> c
   | _ -> c
 
+let rec implications (xs : (A.var * A.ty) list) (c : L.constraint_) :
+    L.constraint_ =
+  match xs with
+  | [] -> c
+  | (x, t) :: xs' -> implications xs' (implication x t c)
+
 (* Computes t[y := z] in a capture avoiding manner, see RTT 3.1 *)
-let rec substitute_type (t : A.ty) (y : A.var) (z : A.var) : A.ty =
+let rec substitute_type (y : A.var) (z : A.var) (t : A.ty) : A.ty =
   match t with
   | T_Refined (b, v, p) ->
-      if String.equal v y then t else T_Refined (b, v, L.substitute_pred p y z)
+      if String.equal v y then t else T_Refined (b, v, L.substitute_pred y z p)
   | T_Arrow (v, s, t) ->
-      if String.equal v y then T_Arrow (v, substitute_type s y z, t)
-      else T_Arrow (v, substitute_type s y z, substitute_type t y z)
+      if String.equal v y then T_Arrow (v, substitute_type y z s, t)
+      else T_Arrow (v, substitute_type y z s, substitute_type y z s)
 
 let rec sub (s : A.ty) (t : A.ty) : L.constraint_ =
   match s with
@@ -135,13 +144,13 @@ let rec sub (s : A.ty) (t : A.ty) : L.constraint_ =
       | T_Refined (b', v2, p2) ->
           if not (b = b') then
             raise (Subtyping_error "Refined types have different base types")
-          else (v1, ty_to_sort b, p1) ==> L.C_Pred (L.substitute_pred p2 v2 v1)
+          else (v1, ty_to_sort b, p1) ==> L.C_Pred (L.substitute_pred v2 v1 p2)
       | T_Arrow _ -> raise (Subtyping_error "Expected refined type"))
   | T_Arrow (x1, s1, t1) -> (
       match t with
       | T_Arrow (x2, s2, t2) ->
           let ci = sub s2 s1 in
-          let co = sub (substitute_type t1 x1 x2) t2 in
+          let co = sub (substitute_type x1 x2 t1) t2 in
           L.C_Conj (ci, implication x2 s2 co)
       | T_Refined _ -> raise (Subtyping_error "Expected arrow type"))
 
@@ -186,7 +195,7 @@ let rec split_lambdas (e1, t1) : (A.var * A.ty) list * A.expr * A.ty =
   match (e1, t1) with
   | A.E_Abs (xa, e), A.T_Arrow (xt, t1, t2) ->
       let ys', e', t' = split_lambdas (e, t2) in
-      (ys' @ [ (xa, substitute_type t1 xt xa) ], e', t')
+      (ys' @ [ (xa, substitute_type xt xa t1) ], e', t')
   | E_Abs _, T_Refined _ ->
       raise
         (Invalid_abs_expression
@@ -196,20 +205,103 @@ let rec split_lambdas (e1, t1) : (A.var * A.ty) list * A.expr * A.ty =
 let rec add_vars (g : env) (ys : (A.var * A.ty) list) : env =
   match ys with [] -> g | (x, t) :: ys' -> (x, t) >: add_vars g ys'
 
+let rec check_sort (g : logic_env) (p : L.pred) (s : L.sort) : bool =
+  match s with
+  | L.S_Int -> (
+      match p with
+      | L.P_Int _ -> true
+      (* check that both predicates are int-sorted *)
+      | L.P_Op (_, p1, p2) -> check_sort g p1 s && check_sort g p2 s
+      | L.P_Var x -> (
+          try
+            let _, s' = List.find (fun (y, _) -> String.equal y x) g in
+            s' = L.S_Int
+          with Not_found -> true)
+      | _ -> false)
+  | L.S_Bool -> failwith "unimplemented"
+  | L.S_TyCtor _ -> failwith "unimplemented"
+
+let rec metric_wf' (g : logic_env) (m : A.metric) : bool =
+  match m with
+  | [] -> true
+  | p :: m' ->
+      (* check that p is int sorted *)
+      let b = check_sort g p L.S_Int in
+      b && metric_wf' g m'
+
+let rec env_to_logic_env (g : env) : logic_env =
+  match g with
+  | E_Empty -> []
+  | E_Cons (x, t, g') -> (
+      match t with
+      | T_Refined (b, _, _) ->
+          let b' = match b with B_Int -> L.S_Int | B_Bool -> L.S_Bool | B_TyCtor _ -> failwith "unimplemented" in
+          (x, b') :: env_to_logic_env g'
+      | T_Arrow _ -> failwith "unimplemented")
+
+let metric_wf (g : env) (m : A.metric) : bool =
+  metric_wf' (env_to_logic_env g) m
+
+let rec wfr (m1 : A.metric) (m2 : A.metric) : L.pred =
+  match (m1, m2) with
+  (* metrics should be non-empty lists - this is guaranteed in programs
+     parsed from the concrete syntax, but one can of course violate this
+     when writing directly in the AST *)
+  | ([], []) -> L.P_True
+  | ([p], [p']) -> L.P_Conj (L.P_Op (L.O_Le, L.P_Int 0, p'), (L.P_Op (L.O_Lt, p', p)))
+  | (p :: ps, p' :: ps') ->
+     let op1 = L.P_Op (L.O_Le, L.P_Int 0, p') in
+     let op2 = L.P_Op (L.O_Lt, p', p) in
+     let op3 = L.P_Op (L.O_Eq, p, p') in
+     L.P_Conj (op1, (L.P_Disj (op2, (L.P_Conj (op3, wfr ps ps')))))
+  | (_, _) -> raise (Termination_error "expected metrics of same length in wfr")
+
 (* g contains actual parameters of fn already, so fresh(g) doesn't clash
    (TODO: maybe change fresh to accept a prefix so we don't lose the var name?) *)
-let limit_function (_ : env) (_ : A.metric) (ty : A.ty) : A.ty =
-  (* TODO *)
-  ty
+let limit_function (g : env) (m : A.metric) (ty : A.ty) : A.ty =
+  let rec limit' (g : env) (m' : A.metric) (m : A.metric) (ty : A.ty) : A.ty =
+    match ty with
+    | T_Arrow (x, s, t) when metric_wf ((x, s) >: g) m ->
+       (match t with
+        | A.T_Refined (b, y, p) ->
+           let x' = fresh_var g in
+           (* substitute x' for the binder in the predicate *)
+           let p_sub = L.substitute_pred y x' p in
+           (* substitute x' for the binder of the argument in the metric *)
+           let m_sub = List.map (L.substitute_pred x x') m in
+           (* form the new predicate that the argument must satisfy *)
+           let p' = L.P_Conj (p_sub, (wfr m' m_sub)) in
+           (* substitute x' for the binder of the argument in the result type *)
+           let t_sub = substitute_type x x' t in
+           (* return the limited arrow type *)
+           A.T_Arrow (x', (A.T_Refined (b, x', p')), t_sub)
+        | A.T_Arrow (_, _, _) -> raise (Termination_error "expected function argument to be a refined base type"))
+    | T_Arrow (x, s, t) ->
+        let g' = (x, s) >: g in
+        let x' = fresh_var g in
+        (* substitute x' for the binder of the argument in the metric *)
+        let m_sub = List.map (L.substitute_pred x x') m in
+        (* substitute x' for the binder of the argument in the result type *)
+        let t_sub = substitute_type x x' t in
+        (* limit the result type by calling recursively *)
+        let t' = limit' g' m' m_sub t_sub in
+        (* substitute x' for the binder of the argument its type
+           - not sure if this is correct, since substitute_type is capture avoiding? *)
+        let s_sub = substitute_type x x' s in
+        (* return the limited arrow type *)
+        A.T_Arrow (x', s_sub, t')
+    | _ -> failwith "todo"
+  in
+  limit' g m m ty
 
 let rec meet (t1 : A.ty) (t2 : A.ty) : A.ty =
   match (t1, t2) with
   | A.T_Refined (b1, v1, p1), A.T_Refined (b2, v2, p2) ->
       if b1 = b2 then
-        A.T_Refined (b1, v1, L.P_Conj (p1, L.substitute_pred p2 v2 v1))
+        A.T_Refined (b1, v1, L.P_Conj (p1, L.substitute_pred v2 v1 p2))
       else raise (Switch_error "Constructor mismatch")
   | A.T_Arrow (x1, s1, t1), A.T_Arrow (x2, s2, t2) ->
-      A.T_Arrow (x1, meet s1 s2, meet t1 (substitute_type t2 x2 x1))
+      A.T_Arrow (x1, meet s1 s2, meet t1 (substitute_type x2 x1 t2))
   | _ -> raise (Switch_error "Constructor mismatch")
 
 let unapply (g : env) (y : A.var) (zs : A.var list) (ty : A.ty) :
@@ -217,7 +309,7 @@ let unapply (g : env) (y : A.var) (zs : A.var list) (ty : A.ty) :
   let rec unapply' acc g zs t =
     match (zs, t) with
     | z :: zs', A.T_Arrow (x, s, t) ->
-        unapply' ((z, s) :: acc) ((z, s) >: g) zs' (substitute_type t x z)
+        unapply' ((z, s) :: acc) ((z, s) >: g) zs' (substitute_type x z t)
     | [], ty ->
         let t =
           match lookup g y with
@@ -292,10 +384,10 @@ let check ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
       let ys, e1_body, t1_result = split_lambdas (e1, t1) in
       let g' = add_vars g ys in
       (* check body of e1 with limited f *)
-      let c1 = check ((f, limit_function g' m t1) >: g') e1_body t1_result in
+      let c1 = check' ((f, limit_function g' m t1) >: g') e1_body t1_result in
       (* check remaining e2 with non-limited f *)
-      let c2 = check ((f, t1) >: g') e2 ty in
-      L.C_Conj (c1, c2)
+      let c2 = check' ((f, t1) >: g') e2 ty in
+      L.C_Conj (implications ys c1, c2)
     | E_Abs (x, e) -> (
         match ty with
         | A.T_Arrow (_, s, t) ->
