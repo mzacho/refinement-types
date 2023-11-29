@@ -56,7 +56,11 @@ let base_env =
   ("add", Parse.string_to_type "x:int{v:True}->y:int{v:True}->int{z:z=(x+y)}")
   >: (( "sub",
         Parse.string_to_type "x:int{v:True}->y:int{v:True}->int{z:z=(x-y)}" )
-     >: E_Empty)
+     >: (( "lt",
+           Parse.string_to_type
+             "x:int{v:True}->y:int{v:True}->bool{z:(z & (x < y)) | (~z & (x >= \
+              y))}" )
+        >: E_Empty))
 
 exception Invalid_arrow_type of string
 exception Invalid_abs_expression of string
@@ -180,14 +184,9 @@ let close_data (denv : data_env) (c : L.constraint_) : L.constraint_ =
 
 let rec split_lambdas (e1, t1) : (A.var * A.ty) list * A.expr * A.ty =
   match (e1, t1) with
-  | E_Abs (xa, e), T_Arrow (xt, t1, t2) ->
+  | A.E_Abs (xa, e), A.T_Arrow (xt, t1, t2) ->
       let ys', e', t' = split_lambdas (e, t2) in
-      (* sth. like this: *)
-      (ys' @ [ (xa, t1 [ xa / xt ]) ], e', t')
-      (* substitute xs/xt accordingly, look at example:
-         \x.\y.x+y : x':int -> y':int -> int[z|z=x'+y'], should return:
-         ([(x, int); (y, int)], x+y, int[z|z=x+y])
-      *)
+      (ys' @ [ (xa, substitute_type t1 xt xa) ], e', t')
   | E_Abs _, T_Refined _ ->
       raise
         (Invalid_abs_expression
@@ -195,11 +194,11 @@ let rec split_lambdas (e1, t1) : (A.var * A.ty) list * A.expr * A.ty =
   | _, _ -> ([], e1, t1)
 
 let rec add_vars (g : env) (ys : (A.var * A.ty) list) : env =
-  match ys with [] -> g | (x, t) :: ys' -> add ((x, t) >: g, ys')
+  match ys with [] -> g | (x, t) :: ys' -> (x, t) >: add_vars g ys'
 
 (* g contains actual parameters of fn already, so fresh(g) doesn't clash
    (TODO: maybe change fresh to accept a prefix so we don't lose the var name?) *)
-let rec limit_function (g : env) (m : A.metric) (ty : A.ty) : A.ty =
+let limit_function (_ : env) (_ : A.metric) (ty : A.ty) : A.ty =
   (* TODO *)
   ty
 
@@ -290,13 +289,13 @@ let check ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
                "Attempted to bind a variable under the same identifier as a \
                 data constructor (let-rec)")
         else
-          let ys, e1_body, t1_body = split_lambdas (e1, t1) in
-          let g' = add_vars (g, ys) in
-          (* check body of e1 with limited f *)
-          let c1 = check ((f, limit_function (g', m, t1)) >: g') e1_body t1_body in
-          (* check remaining e2 with non-limited f *)
-          let c2 = check ((f, t1) >: g') e2 ty in
-          L.C_Conj (c1, c2)
+      let ys, e1_body, t1_result = split_lambdas (e1, t1) in
+      let g' = add_vars g ys in
+      (* check body of e1 with limited f *)
+      let c1 = check ((f, limit_function g' m t1) >: g') e1_body t1_result in
+      (* check remaining e2 with non-limited f *)
+      let c2 = check ((f, t1) >: g') e2 ty in
+      L.C_Conj (c1, c2)
     | E_Abs (x, e) -> (
         match ty with
         | A.T_Arrow (_, s, t) ->
