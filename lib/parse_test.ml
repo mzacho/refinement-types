@@ -186,3 +186,12 @@ let%test "x y" =
 let%test "let x = true in f x " =
   Parse.string_to_expr "let x = true in f x" =
     E_Let ("x", E_True, E_App (E_Var "f", "x"))
+
+let%test "true" = Parse.string_to_expr "true" = E_True
+let%test "false" = Parse.string_to_expr "false" = E_False
+(* fun abs *)
+let%test "x y" = Parse.string_to_expr "x y" = E_App (E_Var "x", "y")
+
+let%test "let x = true in f x " =
+  Parse.string_to_expr "let x = true in f x"
+  = E_Let ("x", E_True, E_App (E_Var "f", "x"))
