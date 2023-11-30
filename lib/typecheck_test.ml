@@ -327,3 +327,24 @@ let%test "length reflects len" =
   in
   let t = Parse.string_to_type "xs:list{v: True} -> int{v: v = len(xs)}" in
   Solver.check ~fs:[ len ] (Typecheck.check list_env e t)
+
+let%test "append reflects len" =
+  let e =
+    Parse.string_to_expr
+      {|
+             let rec append =
+             (fn xs.
+               (fn ys.
+                 switch xs {
+                 | Nil => ys
+                 | Cons(hd, tl) => let apptl = append tl ys in Cons hd apptl
+                 }
+               )
+             ) : xs:list{v: True} -> ys:list{v: True} -> list{v: len(v) = len(xs) + len(ys)}
+             in true
+      |}
+  in
+  let t = Parse.string_to_type "bool{v: True}" in
+  let c = Typecheck.check list_env e t in
+  (* dbg @@ pp_constraint c; *)
+  Solver.check ~fs:[ len ] c
