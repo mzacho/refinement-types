@@ -70,7 +70,13 @@ let rec pp_expr' (e : expr) : PPrint.document =
   | E_If (v, then_br, else_br) ->
       str "if " ^^ str v ^^ str " then " ^^ pp_expr' then_br ^^ str " else "
       ^^ pp_expr' else_br
-  | _ -> failwith "TODO"
+  | E_Switch (v, alts) ->
+      str ("switch " ^ v ^ " {")
+      ^^ PPrint.separate_map (str "| ") pp_alt alts
+      ^^ str "}"
+
+and pp_alt (Alt (d, params, e) : alt) : PPrint.document =
+  str (d ^ "(" ^ String.concat ", " params ^ ") => ") ^^ pp_expr' e
 
 let dbg d : unit =
   let ch = stdout in
