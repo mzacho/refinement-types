@@ -26,6 +26,7 @@ rule token = parse
   | ":"            { COLON }
   | ','            { COMMA }
   | '.'            { DOT }
+  | "=>"	   { RDBLARROW }
   | "="            { EQ }
   | "!="           { NEQ }
   | "<="           { LE }
@@ -49,5 +50,7 @@ rule token = parse
   | "if"           { IF }
   | "then"         { THEN }
   | "else"         { ELSE }
+  | "type"         { TYPE }
+  | "switch"	   { SWITCH }
   | name as s      { VAR s }
   | eof { EOF }

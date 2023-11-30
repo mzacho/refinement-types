@@ -6,6 +6,8 @@
  (preprocess
   (pps ppx_inline_test bisect_ppx --conditional)))
 
-(ocamlyacc parser)
+(menhir
+ (modules parser)
+ (flags --unused-tokens --unused-precedence-levels))
 
 (ocamllex lexer)

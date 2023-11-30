@@ -27,9 +27,11 @@ let rec pp_pred (p : pred) : PPrint.document =
   | P_Disj (p, p') -> pp_pred p ^^ str " ∨ " ^^ pp_pred p'
   | P_Conj (p, p') -> pp_pred p ^^ str " ∧ " ^^ pp_pred p'
   | P_Neg p -> str "¬" ^^ pp_pred p
+  | P_FunApp (f, args) ->
+      str f ^^ str "(" ^^ PPrint.separate_map (str ", ") pp_pred args ^^ str ")"
 
 let pp_sort (s : sort) : PPrint.document =
-  match s with S_Int -> str "ℤ" | S_Bool -> str "𝔹"
+  match s with S_Int -> str "ℤ" | S_Bool -> str "𝔹" | S_TyCtor tc -> str tc
 
 let rec pp_constraint (c : constraint_) : PPrint.document =
   match c with
@@ -42,27 +44,33 @@ let rec pp_constraint (c : constraint_) : PPrint.document =
 let rec pp_ty (t : ty) : PPrint.document =
   match t with
   | T_Refined (t, v, p) ->
-      let base_ty = match t with B_Int -> str "int" | B_Bool -> str "bool" in
+      let base_ty =
+        match t with
+        | B_Int -> str "int"
+        | B_Bool -> str "bool"
+        | B_TyCtor tc -> str tc
+      in
       base_ty ^^ str "{" ^^ str v ^^ str ":" ^^ pp_pred p ^^ str "}"
   | T_Arrow (v, t, t') -> str v ^^ str ":" ^^ pp_ty t ^^ str "->" ^^ pp_ty t'
 
-let rec pp_expr (ast : program) : PPrint.document =
-  match ast with
+let rec pp_expr' (e : expr) : PPrint.document =
+  match e with
   | E_Const n -> int n
   | E_Var v -> str v
-  | E_Abs (v, e) -> str "(fn " ^^ str v ^^ str ": " ^^ pp_expr e ^^ str ")"
-  | E_App (e, v) -> pp_expr e ^^ str " " ^^ str v
+  | E_Abs (v, e) -> str "(fn " ^^ str v ^^ str ": " ^^ pp_expr' e ^^ str ")"
+  | E_App (e, v) -> pp_expr' e ^^ str " " ^^ str v
   | E_Let (v, e1, e2) ->
-      str "let " ^^ str v ^^ str "." ^^ pp_expr e1 ^^ str "in" ^^ pp_expr e2
+      str "let " ^^ str v ^^ str "." ^^ pp_expr' e1 ^^ str "in" ^^ pp_expr' e2
   | E_RLet (v, e1, t, e2) ->
-      str "let rec " ^^ str v ^^ str "." ^^ pp_expr e1 ^^ str ":" ^^ pp_ty t
-      ^^ str "in" ^^ pp_expr e2
-  | E_Ann (e, t) -> pp_expr e ^^ str ":" ^^ pp_ty t
+      str "let rec " ^^ str v ^^ str "." ^^ pp_expr' e1 ^^ str ":" ^^ pp_ty t
+      ^^ str "in" ^^ pp_expr' e2
+  | E_Ann (e, t) -> pp_expr' e ^^ str ":" ^^ pp_ty t
   | E_True -> str "true"
   | E_False -> str "false"
   | E_If (v, then_br, else_br) ->
-      str "if " ^^ str v ^^ str " then " ^^ pp_expr then_br ^^ str " else "
-      ^^ pp_expr else_br
+      str "if " ^^ str v ^^ str " then " ^^ pp_expr' then_br ^^ str " else "
+      ^^ pp_expr' else_br
+  | _ -> failwith "TODO"
 
 let dbg d : unit =
   let ch = stdout in
@@ -72,10 +80,11 @@ let dbg d : unit =
 
 let print s : unit = Printf.fprintf stdout "%s\n" s
 
-let doc_to_string doc : string =
+let doc_to_string (doc : PPrint.document) : string =
   let buf = Buffer.create 0 in
   PPrint.ToBuffer.pretty 1.0 100 buf doc;
   Buffer.contents buf
 
-let pp_program (ast : program) = doc_to_string @@ pp_expr ast
+let pp_expr (e : expr) = doc_to_string @@ pp_expr' e
 let pp_type (ty : ty) = doc_to_string @@ pp_ty ty
+let pp_program (_p : program) = failwith "TODO"
