@@ -13,9 +13,9 @@
 %token EOF
 %left OR         /* for associative tokens: precedence increases downwards */
 %left AND
+%left EQ NEQ GE GT LE LT
 %left PLUS MINUS
 %left TIMES DIV
-%left EQ NEQ GE GT LE LT
 
 
 /* the entry points */
