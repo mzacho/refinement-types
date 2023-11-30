@@ -17,6 +17,7 @@ let base_env =
 exception Invalid_arrow_type of string
 exception Synthesis_error of string
 exception Subtyping_error of string
+exception Switch_error of string
 
 let debug = ref false
 
@@ -26,7 +27,10 @@ let rec lookup (g : env) (v : A.var) : A.ty option =
   | E_Cons (v', t', g') -> if String.equal v' v then Some t' else lookup g' v
 
 let ty_to_sort (t : A.base_ty) =
-  match t with A.B_Int -> L.S_Int | A.B_Bool -> L.S_Bool
+  match t with
+  | A.B_Int -> L.S_Int
+  | A.B_Bool -> L.S_Bool
+  | A.B_TyCtor tc -> L.S_TyCtor tc
 
 let implication (x : A.var) (t : A.ty) (c : L.constraint_) : L.constraint_ =
   match t with
@@ -47,7 +51,7 @@ let rec sub (s : A.ty) (t : A.ty) : L.constraint_ =
   | T_Refined (b, v1, p1) -> (
       match t with
       | T_Refined (b', v2, p2) ->
-          if b != b' then
+          if not (b = b') then
             raise (Subtyping_error "Refined types have different base types")
           else (v1, ty_to_sort b, p1) ==> L.C_Pred (L.substitute_pred p2 v2 v1)
       | T_Arrow _ -> raise (Subtyping_error "Expected refined type"))
@@ -81,14 +85,55 @@ let rec close (g : env) (c : L.constraint_) : L.constraint_ =
   | E_Cons (x, (T_Refined _ as t), g') ->
       let c' = close g' c in
       if L.occurs_free_c x c then implication x t c' else c'
+  | E_Cons (_, _, g') -> close g' c
   | _ -> c
 
-let rec check' (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
+let rec meet (t1 : A.ty) (t2 : A.ty) : A.ty =
+  match (t1, t2) with
+  | A.T_Refined (b1, v1, p1), A.T_Refined (b2, v2, p2) ->
+      if b1 = b2 then
+        A.T_Refined (b1, v1, L.P_Conj (p1, L.substitute_pred p2 v2 v1))
+      else raise (Switch_error "Constructor mismatch")
+  | A.T_Arrow (x1, s1, t1), A.T_Arrow (x2, s2, t2) ->
+      A.T_Arrow (x1, meet s1 s2, meet t1 (substitute_type t2 x2 x1))
+  | _ -> raise (Switch_error "Constructor mismatch")
+
+let unapply (g : env) (y : A.var) (zs : A.var list) (ty : A.ty) :
+    (A.var * A.ty) list =
+  let rec unapply' acc g zs t =
+    match (zs, t) with
+    | z :: zs', A.T_Arrow (x, s, t) ->
+        unapply' ((z, s) :: acc) ((z, s) >: g) zs' (substitute_type t x z)
+    | [], ty ->
+        let t =
+          match lookup g y with
+          | Some t -> t
+          | None ->
+              raise (Switch_error "Variable being matched not in environment")
+        in
+        (y, meet t ty) :: acc
+    | _ -> raise (Switch_error "Constructor mismatch")
+  in
+  unapply' [] g zs ty
+
+let rec check_alt (g : env) (y : A.var) (Alt (d, zs, e) : A.alt) (ty : A.ty) :
+    L.constraint_ =
+  let s =
+    match lookup g d with
+    | Some s -> s
+    | None -> raise (Switch_error "Constructor not in environment")
+  in
+  let zs_ts = unapply g y zs s in
+  let g' = List.fold_left (fun g zt -> zt >: g) g zs_ts in
+  let c = check' g' e ty in
+  List.fold_left (fun c (x, t) -> implication x t c) c zs_ts
+
+and check' (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
   (* returned constraints are not necessarily closed *)
   let _ =
     if !debug then (
       print "check'";
-      dbg @@ pp_expr e;
+      dbg @@ pp_expr' e;
       dbg @@ pp_ty ty)
   in
   match e with
@@ -116,6 +161,10 @@ let rec check' (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
       let yt2 = A.T_Refined (B_Int, y, L.P_Neg (L.P_Var x)) in
       let c2 = check' ((y, yt2) >: g) e2 ty in
       L.C_Conj (c0, L.C_Conj (implication y yt1 c1, implication y yt2 c2))
+  | E_Switch (y, alts) ->
+      List.fold_left
+        (fun c_acc a -> L.C_Conj (c_acc, check_alt g y a ty))
+        (L.C_Pred L.P_True) alts
   | e ->
       let c, s = synth g e in
       let c' = sub s ty in
@@ -125,7 +174,7 @@ and synth (g : env) (e : A.expr) : L.constraint_ * A.ty =
   let _ =
     if !debug then (
       print "synth";
-      dbg @@ pp_expr e)
+      dbg @@ pp_expr' e)
   in
   match e with
   | E_Const c ->
@@ -145,7 +194,7 @@ and synth (g : env) (e : A.expr) : L.constraint_ * A.ty =
       | None ->
           raise
             (Synthesis_error
-               ("Could not lookup var '" ^ pp_program e ^ "' in type env")))
+               ("Could not lookup var '" ^ pp_expr e ^ "' in type env")))
   | E_App (e, y) -> (
       match synth g e with
       | c, T_Arrow (x, s, t) ->
@@ -155,8 +204,7 @@ and synth (g : env) (e : A.expr) : L.constraint_ * A.ty =
           raise (Synthesis_error "Expected exp to synthesize to arrow type"))
   | E_Ann (e, t) -> (check' g e t, t)
   | _ ->
-      raise
-        (Synthesis_error ("Could not synthesize expression: " ^ pp_program e))
+      raise (Synthesis_error ("Could not synthesize expression: " ^ pp_expr e))
 
 and check (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
   (* returned constraints are closed *)

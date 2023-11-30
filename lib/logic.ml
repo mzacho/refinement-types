@@ -1,6 +1,7 @@
 type var = string
 type op = O_Add | O_Sub | O_Eq | O_Lt | O_Le | O_Ge | O_Gt
-type sort = S_Int | S_Bool
+type sort = S_Int | S_Bool | S_TyCtor of string
+type uninterp_fun = var * sort list * sort (* f : (X1, X2, ..., Xn) -> Y *)
 
 type pred =
   | P_Var of var
@@ -11,7 +12,7 @@ type pred =
   | P_Disj of pred * pred
   | P_Conj of pred * pred
   | P_Neg of pred
-(* | P_Fun of var *)
+  | P_FunApp of var * pred list (* f(p1, p2, ..., pn) *)
 
 type constraint_ =
   | C_Pred of pred
@@ -39,6 +40,7 @@ let substitute_pred (p : pred) (v1 : var) (v2 : var) : pred =
     | P_Disj (p1, p2) -> P_Disj (subst_p p1, subst_p p2)
     | P_Conj (p1, p2) -> P_Conj (subst_p p1, subst_p p2)
     | P_Neg p -> P_Neg (subst_p p)
+    | P_FunApp (f, args) -> P_FunApp (f, List.map subst_p args)
     | _ -> p
   in
   subst_p p
@@ -95,6 +97,7 @@ let rec collect_fv_p (p : pred) : var list =
   | P_Disj (p1, p2) -> collect_fv_p p1 @ collect_fv_p p2
   | P_Conj (p1, p2) -> collect_fv_p p1 @ collect_fv_p p2
   | P_Neg p' -> collect_fv_p p'
+  | P_FunApp (_, args) -> List.concat_map collect_fv_p args
 
 let rec collect_fv_c (c : constraint_) : var list =
   match c with
