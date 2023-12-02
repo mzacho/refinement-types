@@ -242,19 +242,69 @@ let%test "Switch branch can affect output" =
   let t = Parse.string_to_type "bool{b: ~ b}" in
   Solver.check ~fs:[ isgreen ] (Typecheck.check rgb_env e t)
 
+let%test "Typechecking switch expression on variable not in environment fails" =
+  let e =
+    Parse.string_to_expr
+      "switch x {Red => false | Green => true | Blue => false}"
+  in
+  let t = Parse.string_to_type "bool{b: True}" in
+  try Solver.check ~fs:[ isgreen ] (Typecheck.check rgb_env e t)
+  with Typecheck.Switch_error _ -> true
+
+let%test "Typechecking switch expression against non-existent constructor fails"
+    =
+  let e =
+    Parse.string_to_expr
+      "let x = Green in switch x {Red => false | Green => true | Blue => false \
+       | Yellow => false}"
+  in
+  let t = Parse.string_to_type "bool{b: True}" in
+  try Solver.check ~fs:[ isgreen ] (Typecheck.check rgb_env e t)
+  with Typecheck.Switch_error _ -> true
+
 let list_sort = Logic.S_TyCtor "list"
 let len : Logic.uninterp_fun = ("len", [ list_sort ], Logic.S_Int)
 
-let list_env =
-  let tc =
-    Parse.string_to_ty_ctor
-      {|
+let list_tc =
+  Parse.string_to_ty_ctor
+    {|
  type list =
  | Nil => {v: len(v) = 0 }
  | Cons(x:int{v: True}, xs:list{v: True}) => {v: len(v) = (1 + len(xs))}.
- |}
+       |}
+
+let doublelist_sort = Logic.S_TyCtor "doublelist"
+
+let doublelist_tc =
+  Parse.string_to_ty_ctor
+    {|
+ type doublelist =
+ | DNil
+ | DCons(x:int{v: True}, y:int{v: True}, xs:boollist{v: True}).
+       |}
+
+let list_env =
+  Ast.tc_to_tys list_tc |> List.fold_left ext_env Typecheck.base_env
+
+let list_env' = Ast.tc_to_tys doublelist_tc |> List.fold_left ext_env list_env
+
+let%test "Incorrect constructor pattern in switch expression" =
+  let e =
+    Parse.string_to_expr
+      "let x = Nil in switch x {Nil(x, xs) => true | Cons => true}"
   in
-  Ast.tc_to_tys tc |> List.fold_left ext_env Typecheck.base_env
+  let t = Parse.string_to_type "bool{b: True}" in
+  try Solver.check ~fs:[ len ] (Typecheck.check list_env e t)
+  with Typecheck.Switch_error _ -> true
+
+let%test "Switch pattern of different data type fails" =
+  let e =
+    Parse.string_to_expr
+      "let x = Nil in switch x {DNil => true | DCons(x, y, xs) => true}"
+  in
+  let t = Parse.string_to_type "bool{b: True}" in
+  try Solver.check ~fs:[ len ] (Typecheck.check list_env' e t)
+  with Typecheck.Switch_error _ -> true
 
 let%test "Nil has length 0" =
   let e = Parse.string_to_expr "let x = Nil in x" in
@@ -347,4 +397,45 @@ let%test "append reflects len" =
   let t = Parse.string_to_type "bool{v: True}" in
   let c = Typecheck.check list_env e t in
   (* dbg @@ pp_constraint c; *)
+  Solver.check ~fs:[ len ] c
+
+let inner_sig = "xs:list{v: True} -> int{v: True}"
+let middle_sig = Printf.sprintf "acc:int{v: True} -> %s" inner_sig
+
+let outer_sig =
+  Printf.sprintf "f:acc:int{v: True} -> x:int{v: True} -> int{v: True} -> %s"
+    middle_sig
+
+let foldl_def =
+  Printf.sprintf
+    {|
+   let rec foldl =
+   (fn f. (fn acc. (fn xs.
+   switch xs {
+   | Nil => acc
+   | Cons(hd, tl) => let res = f acc hd in foldl f res tl
+   }):%s):%s):%s
+   |}
+    inner_sig middle_sig outer_sig
+
+let%test "fold left add" =
+  let e =
+    Parse.string_to_expr
+      (Printf.sprintf
+         {|
+          %s
+          in
+          let x = 0 in
+          let xs = Cons x Nil in
+          let y = 1 in
+          let ys = Cons y xs in
+          let z = 2 in
+          let zs = Cons z ys in
+          let zero = 0 in
+          foldl add zero zs
+          |}
+         foldl_def)
+  in
+  let t = Parse.string_to_type "int{v: True}" in
+  let c = Typecheck.check list_env e t in
   Solver.check ~fs:[ len ] c
