@@ -62,6 +62,11 @@ let%test "let rec expression annotated" =
      -> int{x: True} / x in 1"
   = E_RLet ("f", E_Ann (E_Abs (x', x), arrow), arrow, [ P_Var x' ], l)
 
+(* let%test "let rec decreasing" = *)
+(*   string_to_program "let zero = 0 in let one = 1 in let rec f = (fn x. let b = (lt x) zero in if b then 0 else let y = (sub x) one in f y) : x:int{x:True}->int{y.True} / x in 42" = E_Let ("zero", E_Const 0 , E_RLet ("f", E_Ann (E_Abs (x', E_Let ( "b", E_App ( E_App ( E_Var "lt", x'), "zero"), E_Const 0)), arrow), arrow, [ P_Var x' ], l)) *)
+
+
+
 (* Refined types *)
 
 let%test _ = string_to_type "int{x: True}" = int'

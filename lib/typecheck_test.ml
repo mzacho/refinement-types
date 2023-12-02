@@ -1,4 +1,5 @@
 (* open Pp *)
+open Ast
 
 (* Subtyping tests *)
 let%test "Fail subtyping: int <: (int -> int)" =
@@ -565,4 +566,5 @@ let%test "sum of nats terminates" =
   let t = Parse.string_to_type "int{v: True}" in
   let c = Typecheck.check g e t in
   let _ = Pp.dbg @@ Pp.pp_constraint c in
+
   Solver.check c

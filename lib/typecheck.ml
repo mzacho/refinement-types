@@ -49,6 +49,11 @@ let build_data_env (tctor_decls : A.ty_ctor_decl list) =
 type env = E_Empty | E_Cons of (A.var * A.ty * env)
 type logic_env = (L.var * L.sort) list
 
+let rec env_to_list (g : env) =
+  match g with
+  | E_Empty -> []
+  | E_Cons (x, t, g') -> (x, t) :: env_to_list g'
+
 (* notation *)
 let ( >: ) (v, t) g = E_Cons (v, t, g)
 let ( ==> ) x p = L.( ==> ) x p
@@ -73,7 +78,8 @@ exception Data_env_illformed_error of string
 exception Bind_error of string
 exception Termination_error of string
 
-let debug = ref false
+let debug = ref true
+let debug_indent = ref 0
 
 (* Check that:
    1. No two type constructors have the same name
@@ -135,9 +141,9 @@ let rec substitute_type (y : A.var) (z : A.var) (t : A.ty) : A.ty =
       if String.equal v y then t else T_Refined (b, v, L.substitute_pred y z p)
   | T_Arrow (v, s, t) ->
       if String.equal v y then T_Arrow (v, substitute_type y z s, t)
-      else T_Arrow (v, substitute_type y z s, substitute_type y z s)
+      else T_Arrow (v, substitute_type y z s, substitute_type y z t)
 
-let rec sub (s : A.ty) (t : A.ty) : L.constraint_ =
+let rec sub' (s : A.ty) (t : A.ty) : L.constraint_ =
   match s with
   | T_Refined (b, v1, p1) -> (
       match t with
@@ -153,6 +159,27 @@ let rec sub (s : A.ty) (t : A.ty) : L.constraint_ =
           let co = sub (substitute_type x1 x2 t1) t2 in
           L.C_Conj (ci, implication x2 s2 co)
       | T_Refined _ -> raise (Subtyping_error "Expected arrow type"))
+
+and sub (s : A.ty) (t : A.ty) : L.constraint_ =
+  let _ =
+    if !debug then (
+      print_indent !debug_indent;
+      print "";
+      print @@ pp_type s;
+      print "  SUB  ";
+      print @@ pp_type t;
+      print "\n";
+      debug_indent := !debug_indent + 1) in
+  let c = sub' s t in
+  let _ =
+    if !debug then (
+      debug_indent := !debug_indent - 1;
+      print_indent !debug_indent;
+      print "RES: ";
+      print @@ doc_to_string @@ pp_constraint c;
+      print "\n"
+    )
+  in c
 
 (* selfification, see Section 4 *)
 let self (v : A.var) (t : A.ty) : A.ty =
@@ -237,7 +264,8 @@ let rec env_to_logic_env (g : env) : logic_env =
       | T_Refined (b, _, _) ->
           let b' = match b with B_Int -> L.S_Int | B_Bool -> L.S_Bool | B_TyCtor _ -> failwith "unimplemented" in
           (x, b') :: env_to_logic_env g'
-      | T_Arrow _ -> failwith "unimplemented")
+      | T_Arrow _ -> env_to_logic_env g' )
+         (* todo: add as uninterpreted fun? *)
 
 let metric_wf (g : env) (m : A.metric) : bool =
   metric_wf' (env_to_logic_env g) m
