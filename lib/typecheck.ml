@@ -50,9 +50,7 @@ type env = E_Empty | E_Cons of (A.var * A.ty * env)
 type logic_env = (L.var * L.sort) list
 
 let rec env_to_list (g : env) =
-  match g with
-  | E_Empty -> []
-  | E_Cons (x, t, g') -> (x, t) :: env_to_list g'
+  match g with E_Empty -> [] | E_Cons (x, t, g') -> (x, t) :: env_to_list g'
 
 (* notation *)
 let ( >: ) (v, t) g = E_Cons (v, t, g)
@@ -64,8 +62,8 @@ let base_env =
         Parse.string_to_type "x:int{v:True}->y:int{v:True}->int{z:z=(x-y)}" )
      >: (( "lt",
            Parse.string_to_type
-             "x:int{v:True}->y:int{v:True}->bool{z:(z & (x < y)) | (~z & (x >= \
-              y))}" )
+             "x:int{v:True}->y:int{v:True}->bool{z:(~z | (x < y)) & (~(x < y) \
+              | z)}" )
         >: E_Empty))
 
 exception Synthesis_error of string
@@ -169,7 +167,8 @@ and sub (s : A.ty) (t : A.ty) : L.constraint_ =
       print "  SUB  ";
       print @@ pp_type t;
       print "\n";
-      debug_indent := !debug_indent + 1) in
+      debug_indent := !debug_indent + 1)
+  in
   let c = sub' s t in
   let _ =
     if !debug then (
@@ -177,9 +176,9 @@ and sub (s : A.ty) (t : A.ty) : L.constraint_ =
       print_indent !debug_indent;
       print "RES: ";
       print @@ doc_to_string @@ pp_constraint c;
-      print "\n"
-    )
-  in c
+      print "\n")
+  in
+  c
 
 (* selfification, see Section 4 *)
 let self (v : A.var) (t : A.ty) : A.ty =
@@ -264,8 +263,8 @@ let rec env_to_logic_env (g : env) : logic_env =
       | T_Refined (b, _, _) ->
           let b' = match b with B_Int -> L.S_Int | B_Bool -> L.S_Bool | B_TyCtor _ -> failwith "unimplemented" in
           (x, b') :: env_to_logic_env g'
-      | T_Arrow _ -> env_to_logic_env g' )
-         (* todo: add as uninterpreted fun? *)
+      | T_Arrow _ -> env_to_logic_env g')
+(* todo: add as uninterpreted fun? *)
 
 let metric_wf (g : env) (m : A.metric) : bool =
   metric_wf' (env_to_logic_env g) m
@@ -275,35 +274,39 @@ let rec wfr (m1 : A.metric) (m2 : A.metric) : L.pred =
   (* metrics should be non-empty lists - this is guaranteed in programs
      parsed from the concrete syntax, but one can of course violate this
      when writing directly in the AST *)
-  | ([], []) -> L.P_True
-  | ([p], [p']) -> L.P_Conj (L.P_Op (L.O_Le, L.P_Int 0, p'), (L.P_Op (L.O_Lt, p', p)))
-  | (p :: ps, p' :: ps') ->
-     let op1 = L.P_Op (L.O_Le, L.P_Int 0, p') in
-     let op2 = L.P_Op (L.O_Lt, p', p) in
-     let op3 = L.P_Op (L.O_Eq, p, p') in
-     L.P_Conj (op1, (L.P_Disj (op2, (L.P_Conj (op3, wfr ps ps')))))
-  | (_, _) -> raise (Termination_error "expected metrics of same length in wfr")
+  | [], [] -> L.P_True
+  | [ p ], [ p' ] ->
+      L.P_Conj (L.P_Op (L.O_Le, L.P_Int 0, p'), L.P_Op (L.O_Lt, p', p))
+  | p :: ps, p' :: ps' ->
+      let op1 = L.P_Op (L.O_Le, L.P_Int 0, p') in
+      let op2 = L.P_Op (L.O_Lt, p', p) in
+      let op3 = L.P_Op (L.O_Eq, p, p') in
+      L.P_Conj (op1, L.P_Disj (op2, L.P_Conj (op3, wfr ps ps')))
+  | _, _ -> raise (Termination_error "expected metrics of same length in wfr")
 
 (* g contains actual parameters of fn already, so fresh(g) doesn't clash
    (TODO: maybe change fresh to accept a prefix so we don't lose the var name?) *)
 let limit_function (g : env) (m : A.metric) (ty : A.ty) : A.ty =
   let rec limit' (g : env) (m' : A.metric) (m : A.metric) (ty : A.ty) : A.ty =
     match ty with
-    | T_Arrow (x, s, t) when metric_wf ((x, s) >: g) m ->
-       (match t with
+    | T_Arrow (x, s, t) when metric_wf ((x, s) >: g) m -> (
+        match t with
         | A.T_Refined (b, y, p) ->
-           let x' = fresh_var g in
-           (* substitute x' for the binder in the predicate *)
-           let p_sub = L.substitute_pred y x' p in
-           (* substitute x' for the binder of the argument in the metric *)
-           let m_sub = List.map (L.substitute_pred x x') m in
-           (* form the new predicate that the argument must satisfy *)
-           let p' = L.P_Conj (p_sub, (wfr m' m_sub)) in
-           (* substitute x' for the binder of the argument in the result type *)
-           let t_sub = substitute_type x x' t in
-           (* return the limited arrow type *)
-           A.T_Arrow (x', (A.T_Refined (b, x', p')), t_sub)
-        | A.T_Arrow (_, _, _) -> raise (Termination_error "expected function argument to be a refined base type"))
+            let x' = fresh_var g in
+            (* substitute x' for the binder in the predicate *)
+            let p_sub = L.substitute_pred y x' p in
+            (* substitute x' for the binder of the argument in the metric *)
+            let m_sub = List.map (L.substitute_pred x x') m in
+            (* form the new predicate that the argument must satisfy *)
+            let p' = L.P_Conj (p_sub, wfr m' m_sub) in
+            (* substitute x' for the binder of the argument in the result type *)
+            let t_sub = substitute_type x x' t in
+            (* return the limited arrow type *)
+            A.T_Arrow (x', A.T_Refined (b, x', p'), t_sub)
+        | A.T_Arrow (_, _, _) ->
+            raise
+              (Termination_error
+                 "expected function argument to be a refined base type"))
     | T_Arrow (x, s, t) ->
         let g' = (x, s) >: g in
         let x' = fresh_var g in
