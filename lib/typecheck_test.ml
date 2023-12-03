@@ -399,14 +399,15 @@ let%test "append reflects len" =
   (* dbg @@ pp_constraint c; *)
   Solver.check ~fs:[ len ] c
 
-let inner_sig = "xs:list{v: True} -> int{v: True}"
+let inner_sig = "xs:list{v: True} -> int{v: v = (acc + listsum(xs))}"
 let middle_sig = Printf.sprintf "acc:int{v: True} -> %s" inner_sig
 
 let outer_sig =
-  Printf.sprintf "f:acc:int{v: True} -> x:int{v: True} -> int{v: True} -> %s"
+  Printf.sprintf
+    "f:acc:int{v: True} -> x:int{v: True} -> int{v: v = (acc + x)} -> %s"
     middle_sig
 
-let foldl_def =
+let sum_specialized_foldl_def =
   Printf.sprintf
     {|
    let rec foldl =
@@ -418,6 +419,19 @@ let foldl_def =
    |}
     inner_sig middle_sig outer_sig
 
+let listsum = ("listsum", [ list_sort ], Logic.S_Int)
+
+let list_tc' =
+  Parse.string_to_ty_ctor
+    {|
+     type list =
+     | Nil => {v: listsum(v) = 0}
+     | Cons(x:int{v: True}, xs:list{v: True}) => {v: listsum(v) = (x + listsum(xs))}.
+     |}
+
+let list_env' =
+  Ast.tc_to_tys list_tc' |> List.fold_left ext_env Typecheck.base_env
+
 let%test "fold left add" =
   let e =
     Parse.string_to_expr
@@ -425,17 +439,11 @@ let%test "fold left add" =
          {|
           %s
           in
-          let x = 0 in
-          let xs = Cons x Nil in
-          let y = 1 in
-          let ys = Cons y xs in
-          let z = 2 in
-          let zs = Cons z ys in
-          let zero = 0 in
-          foldl add zero zs
+          let sum = (fn xs. let zero = 0 in foldl add zero xs) : xs:list{v: True} -> int{v: v = listsum(xs)}
+          in sum
           |}
-         foldl_def)
+         sum_specialized_foldl_def)
   in
-  let t = Parse.string_to_type "int{v: True}" in
-  let c = Typecheck.check list_env e t in
-  Solver.check ~fs:[ len ] c
+  let t = Parse.string_to_type "xs:list{v: True} -> int{v: v = listsum(xs)}" in
+  let c = Typecheck.check list_env' e t in
+  Solver.check ~fs:[ listsum ] c
