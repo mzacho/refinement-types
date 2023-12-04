@@ -111,5 +111,4 @@ ty1:
 
 ty:
   | base_ty refinement { Ast.T_Refined ($1, fst $2, snd $2) }
-  /* | VAR ts=plist(COMMA, ty) { Ast.T_Con ($1, ts) } */
   | VAR COLON ty RARROW ty { Ast.T_Arrow ($1, $3, $5) }

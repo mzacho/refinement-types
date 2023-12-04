@@ -204,11 +204,42 @@ let%test "Or function" =
 
 (* ------------------------ Data Types ------------------------------- *)
 
-let ext_env g (x, t) = Typecheck.E_Cons (x, t, g)
+let%test "Typechecking under a data environment with type constructors with \
+          clashing names fails" =
+  let tc1 = Parse.string_to_ty_ctor "type Foo = Bar." in
+  let tc2 = Parse.string_to_ty_ctor "type Foo = Baz." in
+  let denv = Typecheck.build_data_env [ tc1; tc2 ] in
+  let e = Parse.string_to_expr "let x = Foo in switch x {Baz => true}" in
+  let t = Parse.string_to_type "bool{b: True}" in
+  let g = Typecheck.E_Empty in
+  try Solver.check (Typecheck.check ~denv g e t)
+  with Typecheck.Data_env_illformed_error _ -> true
+
+let%test "Typechecking under a data environment with constructors (of same \
+          type constructor) with clashing names fails" =
+  let tc = Parse.string_to_ty_ctor "type Foo = Bar | Bar." in
+  let denv = Typecheck.build_data_env [ tc ] in
+  let e = Parse.string_to_expr "let x = Foo in switch x {Bar => true}" in
+  let t = Parse.string_to_type "bool{b: True}" in
+  let g = Typecheck.E_Empty in
+  try Solver.check (Typecheck.check ~denv g e t)
+  with Typecheck.Data_env_illformed_error _ -> true
+
+let%test "Typechecking under a data environment with constructors (of \
+          different type constructors) with clashing names fails" =
+  let tc1 = Parse.string_to_ty_ctor "type Foo = Baz." in
+  let tc2 = Parse.string_to_ty_ctor "type Bar = Baz." in
+  let denv = Typecheck.build_data_env [ tc1; tc2 ] in
+  let e = Parse.string_to_expr "let x = Foo in switch x {Baz => true}" in
+  let t = Parse.string_to_type "bool{b: True}" in
+  let g = Typecheck.E_Empty in
+  try Solver.check (Typecheck.check ~denv g e t)
+  with Typecheck.Data_env_illformed_error _ -> true
+
 let rgb_sort = Logic.S_TyCtor "rgb"
 let isgreen : Logic.uninterp_fun = ("isgreen", [ rgb_sort ], Logic.S_Bool)
 
-let rgb_env =
+let rgb_data_env =
   let tc =
     Parse.string_to_ty_ctor
       {|
@@ -218,17 +249,20 @@ let rgb_env =
  | Blue => {v: ~ isgreen(v)}.
  |}
   in
-  Ast.tc_to_tys tc |> List.fold_left ext_env Typecheck.E_Empty
+  Typecheck.build_data_env [ tc ]
 
 let%test "green is green" =
   let e = Parse.string_to_expr "let x = Green in x" in
   let t = Parse.string_to_type "rgb{v: isgreen(v)}" in
-  Solver.check ~fs:[ isgreen ] (Typecheck.check rgb_env e t)
+  Solver.check ~fs:[ isgreen ]
+    (Typecheck.check ~denv:rgb_data_env Typecheck.E_Empty e t)
 
 let%test "red is not green" =
   let e = Parse.string_to_expr "let x = Red in x" in
   let t = Parse.string_to_type "rgb{v: isgreen(v)}" in
-  not (Solver.check ~fs:[ isgreen ] (Typecheck.check rgb_env e t))
+  not
+    (Solver.check ~fs:[ isgreen ]
+       (Typecheck.check ~denv:rgb_data_env Typecheck.E_Empty e t))
 
 let%test "Switch branch can affect output" =
   let e =
@@ -240,7 +274,8 @@ let%test "Switch branch can affect output" =
              |}
   in
   let t = Parse.string_to_type "bool{b: ~ b}" in
-  Solver.check ~fs:[ isgreen ] (Typecheck.check rgb_env e t)
+  Solver.check ~fs:[ isgreen ]
+    (Typecheck.check ~denv:rgb_data_env Typecheck.E_Empty e t)
 
 let%test "Typechecking switch expression on variable not in environment fails" =
   let e =
@@ -248,7 +283,20 @@ let%test "Typechecking switch expression on variable not in environment fails" =
       "switch x {Red => false | Green => true | Blue => false}"
   in
   let t = Parse.string_to_type "bool{b: True}" in
-  try Solver.check ~fs:[ isgreen ] (Typecheck.check rgb_env e t)
+  try
+    Solver.check ~fs:[ isgreen ]
+      (Typecheck.check ~denv:rgb_data_env Typecheck.E_Empty e t)
+  with Typecheck.Switch_error _ -> true
+
+let%test "Typechecking non-exhaustive switch expression fails" =
+  let e =
+    Parse.string_to_expr
+      "let x = Green in switch x {Red => false | Green => true}"
+  in
+  let t = Parse.string_to_type "bool{b: True}" in
+  try
+    Solver.check ~fs:[ isgreen ]
+      (Typecheck.check ~denv:rgb_data_env Typecheck.E_Empty e t)
   with Typecheck.Switch_error _ -> true
 
 let%test "Typechecking switch expression against non-existent constructor fails"
@@ -259,7 +307,9 @@ let%test "Typechecking switch expression against non-existent constructor fails"
        | Yellow => false}"
   in
   let t = Parse.string_to_type "bool{b: True}" in
-  try Solver.check ~fs:[ isgreen ] (Typecheck.check rgb_env e t)
+  try
+    Solver.check ~fs:[ isgreen ]
+      (Typecheck.check ~denv:rgb_data_env Typecheck.E_Empty e t)
   with Typecheck.Switch_error _ -> true
 
 let list_sort = Logic.S_TyCtor "list"
@@ -280,13 +330,10 @@ let doublelist_tc =
     {|
  type doublelist =
  | DNil
- | DCons(x:int{v: True}, y:int{v: True}, xs:boollist{v: True}).
+ | DCons(x:int{v: True}, y:int{v: True}, xs:doublelist{v: True}).
        |}
 
-let list_env =
-  Ast.tc_to_tys list_tc |> List.fold_left ext_env Typecheck.base_env
-
-let list_env' = Ast.tc_to_tys doublelist_tc |> List.fold_left ext_env list_env
+let list_data_env = Typecheck.build_data_env [ list_tc; doublelist_tc ]
 
 let%test "Incorrect constructor pattern in switch expression" =
   let e =
@@ -294,22 +341,73 @@ let%test "Incorrect constructor pattern in switch expression" =
       "let x = Nil in switch x {Nil(x, xs) => true | Cons => true}"
   in
   let t = Parse.string_to_type "bool{b: True}" in
-  try Solver.check ~fs:[ len ] (Typecheck.check list_env e t)
+  try
+    Solver.check ~fs:[ len ]
+      (Typecheck.check ~denv:list_data_env Typecheck.base_env e t)
   with Typecheck.Switch_error _ -> true
 
-let%test "Switch pattern of different data type fails" =
+let%test "Typechecking switch expression on variable fails when alternatives \
+          are not constructors of the variable's type" =
   let e =
     Parse.string_to_expr
       "let x = Nil in switch x {DNil => true | DCons(x, y, xs) => true}"
   in
   let t = Parse.string_to_type "bool{b: True}" in
-  try Solver.check ~fs:[ len ] (Typecheck.check list_env' e t)
+  try
+    Solver.check ~fs:[ len ]
+      (Typecheck.check ~denv:list_data_env Typecheck.base_env e t)
+  with Typecheck.Switch_error _ -> true
+
+let%test "Typechecking let expression that binds a variable with the same name \
+          as a constructor fails" =
+  let e = Parse.string_to_expr "let Nil = 0 in true" in
+  let t = Parse.string_to_type "bool{b: True}" in
+  try
+    Solver.check ~fs:[ len ]
+      (Typecheck.check ~denv:list_data_env Typecheck.base_env e t)
+  with Typecheck.Bind_error _ -> true
+
+let%test "Typechecking let-rec expression that binds a variable with the same \
+          name as a constructor fails" =
+  let e =
+    Parse.string_to_expr
+      "let rec Nil = (fn x. 0) : x:int{v: True} -> int{v: True} in true"
+  in
+  let t = Parse.string_to_type "bool{b: True}" in
+  try
+    Solver.check ~fs:[ len ]
+      (Typecheck.check ~denv:list_data_env Typecheck.base_env e t)
+  with Typecheck.Bind_error _ -> true
+
+let%test "Typechecking switch on variable that's not a data type fails" =
+  let e =
+    Parse.string_to_expr
+      "let x = 42 in switch x {Nil => true | Cons(x, xs) => true}"
+  in
+  let t = Parse.string_to_type "bool{b: True}" in
+  try
+    Solver.check ~fs:[ len ]
+      (Typecheck.check ~denv:list_data_env Typecheck.base_env e t)
+  with Typecheck.Switch_error _ -> true
+
+let%test "Typechecking switch on variable of non-value type (partially applied \
+          constructor) fails" =
+  let e =
+    Parse.string_to_expr
+      "let x = 42 in let y = Cons x in switch y {Nil => true | Cons(x, xs) => \
+       true}"
+  in
+  let t = Parse.string_to_type "bool{b: True}" in
+  try
+    Solver.check ~fs:[ len ]
+      (Typecheck.check ~denv:list_data_env Typecheck.base_env e t)
   with Typecheck.Switch_error _ -> true
 
 let%test "Nil has length 0" =
   let e = Parse.string_to_expr "let x = Nil in x" in
   let t = Parse.string_to_type "list{v: len(x) = 0}" in
-  Solver.check ~fs:[ len ] (Typecheck.check list_env e t)
+  Solver.check ~fs:[ len ]
+    (Typecheck.check ~denv:list_data_env Typecheck.base_env e t)
 
 let%test "Singleton function outputs list of length 1" =
   let e =
@@ -321,7 +419,8 @@ let%test "Singleton function outputs list of length 1" =
               |}
   in
   let t = Parse.string_to_type "list{v: len(v) = 1}" in
-  Solver.check ~fs:[ len ] (Typecheck.check list_env e t)
+  Solver.check ~fs:[ len ]
+    (Typecheck.check ~denv:list_data_env Typecheck.base_env e t)
 
 let%test "Safe head positive" =
   let e =
@@ -341,7 +440,8 @@ let%test "Safe head positive" =
               |}
   in
   let t = Parse.string_to_type "int{v: True}" in
-  Solver.check ~fs:[ len ] (Typecheck.check list_env e t)
+  Solver.check ~fs:[ len ]
+    (Typecheck.check ~denv:list_data_env Typecheck.base_env e t)
 
 let%test "Safe head negative" =
   let e =
@@ -360,7 +460,9 @@ let%test "Safe head negative" =
               |}
   in
   let t = Parse.string_to_type "int{v: True}" in
-  not (Solver.check ~fs:[ len ] (Typecheck.check list_env e t))
+  not
+    (Solver.check ~fs:[ len ]
+       (Typecheck.check ~denv:list_data_env Typecheck.base_env e t))
 
 let%test "length reflects len" =
   let e =
@@ -376,7 +478,8 @@ let%test "length reflects len" =
               |}
   in
   let t = Parse.string_to_type "xs:list{v: True} -> int{v: v = len(xs)}" in
-  Solver.check ~fs:[ len ] (Typecheck.check list_env e t)
+  Solver.check ~fs:[ len ]
+    (Typecheck.check ~denv:list_data_env Typecheck.base_env e t)
 
 let%test "append reflects len" =
   let e =
@@ -395,7 +498,7 @@ let%test "append reflects len" =
       |}
   in
   let t = Parse.string_to_type "bool{v: True}" in
-  let c = Typecheck.check list_env e t in
+  let c = Typecheck.check ~denv:list_data_env Typecheck.base_env e t in
   (* dbg @@ pp_constraint c; *)
   Solver.check ~fs:[ len ] c
 
@@ -429,8 +532,7 @@ let list_tc' =
      | Cons(x:int{v: True}, xs:list{v: True}) => {v: listsum(v) = (x + listsum(xs))}.
      |}
 
-let list_env' =
-  Ast.tc_to_tys list_tc' |> List.fold_left ext_env Typecheck.base_env
+let list_data_env' = Typecheck.build_data_env [ list_tc' ]
 
 let%test "fold left add" =
   let e =
@@ -445,5 +547,5 @@ let%test "fold left add" =
          sum_specialized_foldl_def)
   in
   let t = Parse.string_to_type "xs:list{v: True} -> int{v: v = listsum(xs)}" in
-  let c = Typecheck.check list_env' e t in
+  let c = Typecheck.check ~denv:list_data_env' Typecheck.base_env e t in
   Solver.check ~fs:[ listsum ] c
