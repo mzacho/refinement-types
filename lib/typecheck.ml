@@ -6,23 +6,30 @@ module R = Result
 let r_bind f r x = R.bind r (f x)
 
 (* Data environment is a mapping of type constructor names to their (base) type and data constructors *)
-type data_env = (A.var * (A.base_ty * (A.var * A.ty) list)) list
+type data_env = (A.var * A.ty_ctor) list
 
 (* Lookup the type of a data constructor *)
 let lookup_dctor_ty (denv : data_env) (dcname : A.var) : A.ty option =
-  List.find_map (fun (_, (_, dctors)) -> List.assoc_opt dcname dctors) denv
+  List.find_map
+    (fun ((_, (_, dctors)) : A.var * A.ty_ctor) -> List.assoc_opt dcname dctors)
+    denv
 
 (* Lookup the (base) type and data constructors of a type constructor *)
-let lookup_tctor (denv : data_env) (tc : A.var) :
-    (A.base_ty * (A.var * A.ty) list) option =
+let lookup_tctor (denv : data_env) (tc : A.var) : A.ty_ctor option =
   List.assoc_opt tc denv
 
 (* Build a data environment from a list of type constructor declarations *)
-let build_data_env (tctors : A.ty_ctor list) =
-  let dctor_to_ty tcname (dcname, binders, refinement) =
+let build_data_env (tctor_decls : A.ty_ctor_decl list) =
+  (* Map a data constructor declaration to a tuple of the name and type of the constructor *)
+  let map_dctor_decl (tcname : string)
+      ((dcname, binders, refinement) : A.data_ctor_decl) : A.var * A.ty =
     let v, p =
       match refinement with Some (v, p) -> (v, p) | None -> ("v", Logic.P_True)
     in
+    (* The type of a data constructor D(x1:t1, ..., xn:tn) for the type constructor C of (base) type C_bty
+       can be viewed as a function x1:t1 -> ... -> xn:tn -> C_bty.
+       Null-ary constructors (no binders/ arguments) just have type C_bty.
+    *)
     let dcty =
       List.fold_right
         (fun (x, s) t -> A.T_Arrow (x, s, t))
@@ -31,10 +38,13 @@ let build_data_env (tctors : A.ty_ctor list) =
     in
     (dcname, dcty)
   in
-  let f denv (tcname, dctors) =
-    (tcname, (A.B_TyCtor tcname, List.map (dctor_to_ty tcname) dctors)) :: denv
+  (* Map a type constructor declaration to a tuple of the name and tuple of base type and list of constructor (name, type) pairs *)
+  let map_tctor_decl (denv : data_env) ((tcname, dctors) : A.ty_ctor_decl) :
+      (A.var * A.ty_ctor) list =
+    (tcname, (A.B_TyCtor tcname, List.map (map_dctor_decl tcname) dctors))
+    :: denv
   in
-  List.fold_left f [] tctors
+  List.fold_left map_tctor_decl [] tctor_decls
 
 type env = E_Empty | E_Cons of (A.var * A.ty * env)
 
@@ -329,7 +339,9 @@ let check ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
         raise
           (Synthesis_error ("Could not synthesize expression: " ^ pp_expr e))
   in
-  (* returned constraints are closed *)
+  (* Check that the provided data environment is wellformed *)
   match check_data_env denv with
-  | R.Ok denv -> close_data denv @@ close g (check' g e ty)
+  | R.Ok denv ->
+      (* returned constraints are closed *)
+      close_data denv @@ close g (check' g e ty)
   | R.Error e -> raise e

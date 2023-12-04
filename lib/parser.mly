@@ -23,7 +23,7 @@
 %type <Ast.program> program1
 %type <Ast.expr> expr1
 %type <Ast.ty> ty1
-%type <Ast.ty_ctor> ty_ctor1
+%type <Ast.ty_ctor_decl> ty_ctor1
 
 %%
 program1:
