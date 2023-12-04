@@ -4,7 +4,7 @@ type 'a start =
   | Program : Ast.program start
   | Expression : Ast.expr start
   | Type : Ast.ty start
-  | TyCtor : Ast.ty_ctor start
+  | TyCtor : Ast.ty_ctor_decl start
 
 let parse' name lexbuf start =
   lexbuf.Lexing.lex_curr_p <-
@@ -27,7 +27,7 @@ let parse (type a) name lexbuf : a start -> a = function
   | Type -> parse' name lexbuf Parser.ty1
   | TyCtor -> parse' name lexbuf Parser.ty_ctor1
 
-let string_to_ty_ctor s : Ast.ty_ctor =
+let string_to_ty_ctor s : Ast.ty_ctor_decl =
   let lexbuf = Lexing.from_string s in
   parse "string" lexbuf TyCtor
 
