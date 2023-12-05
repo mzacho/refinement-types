@@ -59,12 +59,14 @@ let rec pp_metric (m : metric) : PPrint.document =
   | p :: [] -> pp_pred p
   | p :: m' -> pp_pred p ^^ str ", " ^^ pp_metric m'
 
-let pp_env (g: (var * ty) list) : PPrint.document =
-  let rec aux g = match g with
-  | [] -> str ""
-  | [(x, t)] -> str x ^^ str ":" ^^ pp_ty t
-  | (x, t) :: g' -> str x ^^ str ":" ^^ pp_ty t ^^ str ", " ^^ aux g'
-  in str "[" ^^ aux g ^^ str "]"
+let pp_env (g : (var * ty) list) : PPrint.document =
+  let rec aux g =
+    match g with
+    | [] -> str ""
+    | [ (x, t) ] -> str x ^^ str ":" ^^ pp_ty t
+    | (x, t) :: g' -> str x ^^ str ":" ^^ pp_ty t ^^ str ", " ^^ aux g'
+  in
+  str "[" ^^ aux g ^^ str "]"
 
 let rec pp_expr' (e : expr) : PPrint.document =
   match e with
@@ -73,10 +75,11 @@ let rec pp_expr' (e : expr) : PPrint.document =
   | E_Abs (v, e) -> str "(fn " ^^ str v ^^ str ": " ^^ pp_expr' e ^^ str ")"
   | E_App (e, v) -> pp_expr' e ^^ str " " ^^ str v
   | E_Let (v, e1, e2) ->
-      str "let " ^^ str v ^^ str " = " ^^ pp_expr' e1 ^^ str " in " ^^ pp_expr' e2
+      str "let " ^^ str v ^^ str " = " ^^ pp_expr' e1 ^^ str " in "
+      ^^ pp_expr' e2
   | E_RLet (v, e1, t, m, e2) ->
-      str "let rec " ^^ str v ^^ str " = " ^^ pp_expr' e1 ^^ str " : " ^^ pp_ty t
-      ^^ str " / " ^^ pp_metric m ^^ str " in " ^^ pp_expr' e2
+      str "let rec " ^^ str v ^^ str " = " ^^ pp_expr' e1 ^^ str " : "
+      ^^ pp_ty t ^^ str " / " ^^ pp_metric m ^^ str " in " ^^ pp_expr' e2
   | E_Ann (e, t) -> pp_expr' e ^^ str ":" ^^ pp_ty t
   | E_True -> str "true"
   | E_False -> str "false"
@@ -98,9 +101,10 @@ let dbg d : unit =
   flush_all ()
 
 let print s : unit = Printf.fprintf stdout "%s" s
+
 let rec print_indent indent =
-  if indent = 0 then () else
-    print_indent (indent - 1); print "." (* (Printf.sprintf " %i " indent) *)
+  if indent = 0 then () else print_indent (indent - 1);
+  print "." (* (Printf.sprintf " %i " indent) *)
 
 let doc_to_string (doc : PPrint.document) : string =
   let buf = Buffer.create 0 in

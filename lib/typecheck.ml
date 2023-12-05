@@ -5,7 +5,6 @@ module R = Result
 
 let debug = ref true
 let debug_indent = ref 0
-
 let r_bind f r x = R.bind r (f x)
 
 (* Data environment is a mapping of type constructor names to their (base) type and data constructors *)
@@ -71,13 +70,13 @@ let base_env =
 
 exception Synthesis_error of string
 exception Subtyping_error of string
-
 exception Invalid_arrow_type of string
 exception Invalid_abs_expression of string
 exception Switch_error of string
 exception Data_env_illformed_error of string
 exception Bind_error of string
 exception Termination_error of string
+
 (* Check that:
    1. No two type constructors have the same name
    2. No two data constructors have the same name
@@ -260,10 +259,12 @@ let rec env_to_logic_env (g : env) : logic_env =
   | E_Cons (x, t, g') -> (
       match t with
       | T_Refined (b, _, _) ->
-         let b' = match b with
-           | B_Int -> L.S_Int
-           | B_Bool -> L.S_Bool
-           | B_TyCtor y -> L.S_TyCtor y  in
+          let b' =
+            match b with
+            | B_Int -> L.S_Int
+            | B_Bool -> L.S_Bool
+            | B_TyCtor y -> L.S_TyCtor y
+          in
           (x, b') :: env_to_logic_env g'
       | T_Arrow _ -> env_to_logic_env g')
 (* todo: add as uninterpreted fun? *)
@@ -323,7 +324,9 @@ let limit_function (g : env) (m : A.metric) (ty : A.ty) : A.ty =
         let s_sub = substitute_type x x' s in
         (* return the limited arrow type *)
         A.T_Arrow (x', s_sub, t')
-    | _ -> dbg @@ pp_ty ty; failwith "todo"
+    | _ ->
+        dbg @@ pp_ty ty;
+        failwith "todo"
   in
   limit' g m m ty
 
@@ -408,13 +411,15 @@ let check ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
                "Attempted to bind a variable under the same identifier as a \
                 data constructor (let-rec)")
         else
-      let ys, e1_body, t1_result = split_lambdas (e1, t1) in
-      let g' = add_vars g ys in
-      (* check body of e1 with limited f *)
-      let c1 = check' ((f, limit_function g' m t1) >: g') e1_body t1_result in
-      (* check remaining e2 with non-limited f *)
-      let c2 = check' ((f, t1) >: g') e2 ty in
-      L.C_Conj (implications ys c1, c2)
+          let ys, e1_body, t1_result = split_lambdas (e1, t1) in
+          let g' = add_vars g ys in
+          (* check body of e1 with limited f *)
+          let c1 =
+            check' ((f, limit_function g' m t1) >: g') e1_body t1_result
+          in
+          (* check remaining e2 with non-limited f *)
+          let c2 = check' ((f, t1) >: g') e2 ty in
+          L.C_Conj (implications ys c1, c2)
     | E_Abs (x, e) -> (
         match ty with
         | A.T_Arrow (_, s, t) ->
@@ -485,12 +490,14 @@ let check ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
         (* print_indent !debug_indent; *)
         (* print "ENV: "; *)
         (* print @@ doc_to_string @@ pp_env @@ env_to_list g; *)
-        (* print "\n"; *)        print_indent !debug_indent;
+        (* print "\n"; *)
+        print_indent !debug_indent;
         print @@ pp_expr e;
         print "\t<==\t";
         print @@ pp_type ty;
         print "\n";
-        debug_indent := !debug_indent + 1) in
+        debug_indent := !debug_indent + 1)
+    in
     let c = check'' g e ty in
     let _ =
       if !debug then (
@@ -498,10 +505,9 @@ let check ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
         print_indent !debug_indent;
         print "RES: ";
         print @@ doc_to_string @@ pp_constraint c;
-        print "\n"
-      )
-    in c
-
+        print "\n")
+    in
+    c
   and synth (g : env) (e : A.expr) : L.constraint_ * A.ty =
     let _ =
       if !debug then (
@@ -512,9 +518,9 @@ let check ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
         (* print "ENV: "; *)
         (* print @@ doc_to_string @@ pp_env @@ env_to_list g; *)
         (* print "\n"; *)
-        debug_indent := !debug_indent + 1
-      ) in
-    let (c, t) = synth' g e in
+        debug_indent := !debug_indent + 1)
+    in
+    let c, t = synth' g e in
     let _ =
       if !debug then (
         debug_indent := !debug_indent - 1;
@@ -523,11 +529,11 @@ let check ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
         print @@ doc_to_string @@ pp_constraint c;
         print " , ";
         print @@ pp_type t;
-        print "\n";
-      )
-    in (c, t)
-
+        print "\n")
+    in
+    (c, t)
   in
+
   (* Check that the provided data environment is wellformed *)
   match check_data_env denv with
   | R.Ok denv ->

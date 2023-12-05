@@ -8,7 +8,6 @@ type ty =
 type ty_ctor = base_ty * (var * ty) list
 type data_ctor_decl = var * (var * ty) list * (var * Logic.pred) option
 type ty_ctor_decl = var * data_ctor_decl list
-
 type metric = Logic.pred list
 
 type expr =
