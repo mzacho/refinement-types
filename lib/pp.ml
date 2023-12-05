@@ -100,7 +100,7 @@ let dbg d : unit =
 let print s : unit = Printf.fprintf stdout "%s" s
 let rec print_indent indent =
   if indent = 0 then () else
-    print_indent (indent - 1); print " . " (* (Printf.sprintf " %i " indent) *)
+    print_indent (indent - 1); print "." (* (Printf.sprintf " %i " indent) *)
 
 let doc_to_string (doc : PPrint.document) : string =
   let buf = Buffer.create 0 in
