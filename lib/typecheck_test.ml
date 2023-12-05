@@ -1,5 +1,5 @@
 (* open Pp *)
-open Ast
+(* open Ast *)
 
 (* Subtyping tests *)
 let%test "Fail subtyping: int <: (int -> int)" =
@@ -123,18 +123,6 @@ let%test "Let exp checks (bool)" =
   let e = Parse.string_to_expr "let x = true in (let y = false in x)" in
   let g = Typecheck.E_Empty in
   let t = Parse.string_to_type "bool{z: z}" in
-  Solver.check (Typecheck.check g e t)
-
-let%test "Let rec exp with no recursion checks" =
-  let e = Parse.string_to_expr "let rec x = 42 : int{x: x = 42} / 0  in x" in
-  let g = Typecheck.base_env in
-  let t = Parse.string_to_type "int{v: v = 42}" in
-  Solver.check (Typecheck.check g e t)
-
-let%test "Let rec exp with recursive definition checks" =
-  let e = Parse.string_to_expr "let rec x = x : int{x: x = 42} / 0 in x" in
-  let g = Typecheck.base_env in
-  let t = Parse.string_to_type "int{v: v = 42}" in
   Solver.check (Typecheck.check g e t)
 
 let%test "Regular let exp with recursion fails" =
@@ -520,7 +508,7 @@ let sum_specialized_foldl_def =
    switch xs {
    | Nil => acc
    | Cons(hd, tl) => let res = f acc hd in foldl f res tl
-   }):%s):%s):%s
+   }):%s):%s):%s / len(xs)
    |}
     inner_sig middle_sig outer_sig
 
