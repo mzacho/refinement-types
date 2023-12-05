@@ -404,9 +404,9 @@ let check ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
 
           let c2 = check' ((x, t1) >: g) e2 ty in
           L.C_Conj (c1, implication x t1 c2)
-    | E_RLet (x, e1, t1, _, e2) ->
+    | E_RLet (f, e1, t1, _, e2) ->
         (* Check that we try to bind under an identifier that clashes with a type or data constructor *)
-        if lookup_tctor denv x <> None || lookup_dctor_ty denv x <> None then
+        if lookup_tctor denv f <> None || lookup_dctor_ty denv f <> None then
           raise
             (Bind_error
                "Attempted to bind a variable under the same identifier as a \
