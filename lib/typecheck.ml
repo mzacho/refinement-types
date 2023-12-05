@@ -3,7 +3,7 @@ module A = Ast
 module L = Logic
 module R = Result
 
-let debug = ref true
+let debug = ref false
 let debug_indent = ref 0
 let r_bind f r x = R.bind r (f x)
 
@@ -489,10 +489,10 @@ let check ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
   and check' (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
     let _ =
       if !debug then (
-        (* print_indent !debug_indent; *)
-        (* print "ENV: "; *)
-        (* print @@ doc_to_string @@ pp_env @@ env_to_list g; *)
-        (* print "\n"; *)
+        print_indent !debug_indent;
+        print "ENV: ";
+        print @@ doc_to_string @@ pp_env @@ env_to_list g;
+        print "\n";
         print_indent !debug_indent;
         print @@ pp_expr e;
         print "\t<==\t";
@@ -514,13 +514,13 @@ let check ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
     let _ =
       if !debug then (
         print_indent !debug_indent;
+        print "ENV: ";
+        print @@ doc_to_string @@ pp_env @@ env_to_list g;
+        print "\n";
+        debug_indent := !debug_indent + 1;
+        print_indent !debug_indent;
         print @@ pp_expr e;
-        print "\t==>\n";
-        (* print_indent !debug_indent; *)
-        (* print "ENV: "; *)
-        (* print @@ doc_to_string @@ pp_env @@ env_to_list g; *)
-        (* print "\n"; *)
-        debug_indent := !debug_indent + 1)
+        print "\t==>\n")
     in
     let c, t = synth' g e in
     let _ =
