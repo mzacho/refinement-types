@@ -213,7 +213,7 @@ let switch_alternatives_exhaustive (dctors : (A.var * A.ty) list)
     | A.T_Arrow (_, _, t') -> 1 + number_of_args t'
   in
   let matches (A.Alt (dcname, binders, _) : A.alt) (dcname', t) =
-    Strings.equal dcname dcname' && List.length binders = number_of_args t
+    String.equal dcname dcname' && List.length binders = number_of_args t
   in
   let alt_matched_in_dctors (alt : A.alt) =
     List.exists (fun dctor -> matches alt dctor) dctors
