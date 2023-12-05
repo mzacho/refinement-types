@@ -533,7 +533,6 @@ let%test "fold left add" =
 
 (* ------------------------ termination ------------------------------- *)
 
-
 (* let%test "Let rec exp w/ recursive def. and annotation checks" = *)
 (*   let e = *)
 (*     Parse.string_to_expr *)
@@ -546,14 +545,39 @@ let%test "fold left add" =
 let%test "sum of nats terminates" =
   let e =
     Parse.string_to_expr
-      "let one = 1 in let rec sum = (fn x. (let b = (lt x) one in if b then 0 \
-       else let y = (sub x) one in let z = sum y in (add z) one)) : \
-       x:int{v:True} -> int{v:True} / x\n\
-      \             in let a = 10 in sum a"
+      "let one = 1 in\n\
+      \         let rec sum =\n\
+      \           (fn x.\n\
+      \             (let b = (lt x) one in\n\
+      \               if b then 0 else\n\
+      \                 let y = (sub x) one in\n\
+      \                 let z = sum y in\n\
+      \                   (add z) one))\n\
+      \         : x:int{v:True} -> int{v:True} / x\n\
+      \       in\n\
+      \       let a = 10 in sum a"
   in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: True}" in
   let c = Typecheck.check g e t in
-  let _ = Pp.dbg @@ Pp.pp_constraint c in
+  Solver.check c
 
+let%test "sumT: recursion on multiple parameters terminates" =
+  let e =
+    Parse.string_to_expr
+      "let zero = 0 in let one = 1 in let ten = 10 in\n\
+      \         let rec sumT =\n\
+      \           (fn total.\n\
+      \             (fn x. let y = (lt x) one in\n\
+      \               if y then 0 else\n\
+      \                 let newtotal = (add total) one in\n\
+      \                 let newx     = (sub x) one     in\n\
+      \                   (sumT newtotal) newx))\n\
+      \           : acc:int{v: True} -> x:int{v: True} -> int{v: True} / x\n\
+      \       in (sumT zero) ten"
+  in
+  let g = Typecheck.base_env in
+  let t = Parse.string_to_type "int{v: True}" in
+  let c = Typecheck.check g e t in
+  (* let _ = Pp.dbg @@ Pp.pp_constraint c in *)
   Solver.check c
