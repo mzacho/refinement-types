@@ -242,8 +242,7 @@ let rec check_sort (g : logic_env) (p : L.pred) (s : L.sort) : bool =
             s' = L.S_Int
           with Not_found -> true)
       | P_FunApp (_, _) -> true (* TODO: lookup codomain of uninterpreted fun *)
-      | _ -> false
-  )
+      | _ -> false)
   | L.S_Bool -> failwith "unimplemented"
   | L.S_TyCtor _ -> failwith "unimplemented"
 
