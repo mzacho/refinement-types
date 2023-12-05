@@ -533,6 +533,31 @@ let%test "fold left add" =
 
 (* ------------------------ termination ------------------------------- *)
 
+let%test "constant fun terminates" =
+  let e =
+    Parse.string_to_expr
+      "let zero = 0 in let rec f = (fn x. 42)\n\
+      \   : acc:int{v: True} -> int{v: True} / x\n\
+      \  in f zero"
+  in
+  let g = Typecheck.base_env in
+  let t = Parse.string_to_type "int{v: True}" in
+  let c = Typecheck.check g e t in
+  Solver.check c
+
+let%test "constant curried fun terminates" =
+  let e =
+    Parse.string_to_expr
+      "let zero = 0 in let rec f = (fn a. (fn b. 42))\n\
+      \   : x:int{v: True} -> y:int{v: True} -> int{v: True} / t\n\
+      \  in (f zero) zero"
+  in
+  let g = Typecheck.base_env in
+  let t = Parse.string_to_type "int{v: True}" in
+  let c = Typecheck.check g e t in
+  (* let _ = Pp.dbg @@ Pp.pp_constraint c in *)
+  Solver.check c
+
 (* let%test "Let rec exp w/ recursive def. and annotation checks" = *)
 (*   let e = *)
 (*     Parse.string_to_expr *)
@@ -578,6 +603,6 @@ let%test "sumT: recursion on multiple parameters terminates" =
   in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: True}" in
-  let c = Typecheck.check g e t in
+  let c = Typecheck.check ~debug:false g e t in
   (* let _ = Pp.dbg @@ Pp.pp_constraint c in *)
   Solver.check c
