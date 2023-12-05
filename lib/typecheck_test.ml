@@ -301,7 +301,7 @@ let list_tc =
     {|
  type list =
  | Nil => {v: len(v) = 0 }
- | Cons(x:int{v: True}, xs:list{v: True}) => {v: len(v) = (1 + len(xs))}.
+ | Cons(x:int{v: True}, xs:list{v: len(v) >= 0}) => {v: len(v) = 1 + len(xs)}.
        |}
 
 let doublelist_sort = Logic.S_TyCtor "doublelist"
