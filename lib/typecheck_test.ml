@@ -545,6 +545,23 @@ let%test "constant fun terminates" =
   let c = Typecheck.check g e t in
   Solver.check c
 
+let%test "rec sub one until 0 terminates" =
+  let e =
+    Parse.string_to_expr
+      "let zero = 0 in let one = 1 in let rec f =
+          (fn x. let b = (lt x) zero in
+                 if b then 0 else
+                 let newx = (sub x) one in f newx)
+         : acc:int{v: True} -> int{v: True} / x
+       in
+         let ten = 10 in f ten"
+  in
+  let g = Typecheck.base_env in
+  let t = Parse.string_to_type "int{v: True}" in
+  let c = Typecheck.check ~debug:true g e t in
+  Solver.check c
+
+
 let%test "constant curried fun terminates" =
   let e =
     Parse.string_to_expr
