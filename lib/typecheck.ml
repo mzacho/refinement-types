@@ -275,7 +275,7 @@ let limit_function (g : env) (m : A.metric) (ty : A.ty) : A.ty =
         | A.T_Refined (b, y, p) ->
             let x' = fresh_var g in
             (* substitute x' for the binder in the predicate *)
-            let p_sub = L.substitute_pred y x' p in
+            let p_sub = L.substitute_pred x x' @@ L.substitute_pred y x p in
             (* substitute x' for the binder of the argument in the metric *)
             let m_sub = List.map (L.substitute_pred x x') m in
             (* form the new predicate that the argument must satisfy *)
