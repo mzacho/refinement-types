@@ -536,9 +536,11 @@ let%test "fold left add" =
 let%test "constant fun terminates" =
   let e =
     Parse.string_to_expr
-      "let zero = 0 in let rec f = (fn x. 42)\n\
-      \   : x:int{v: True} -> int{v: True} / x\n\
-      \  in f zero"
+      {|
+     let zero = 0 in let rec f =
+        (fn x. 42) : x:int{v: True} -> int{v: True} / x
+     in f zero
+    |}
   in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: True}" in
@@ -548,13 +550,15 @@ let%test "constant fun terminates" =
 let%test "rec sub one until 0 terminates" =
   let e =
     Parse.string_to_expr
-      "let zero = 0 in let one = 1 in let rec f =\n\
-      \          (fn x. let b = (lt x) one in\n\
-      \                 (if b then 0 else\n\
-      \                 let newx = (sub x) one in f newx))\n\
-      \         : x:int{v:True} -> int{v: True} / x\n\
-      \       in\n\
-      \         let ten = 10 in f ten"
+      {|
+      let zero = 0 in let one = 1 in let rec f =
+                (fn x. let b = (lt x) one in
+                       (if b then 0 else
+                       let newx = (sub x) one in f newx))
+               : x:int{v:True} -> int{v: True} / x
+             in
+             let ten = 10 in f t
+      |}
   in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: True}" in
@@ -564,9 +568,12 @@ let%test "rec sub one until 0 terminates" =
 let%test "constant curried fun terminates" =
   let e =
     Parse.string_to_expr
-      "let zero = 0 in let rec f = (fn a. (fn b. 42))\n\
-      \   : x:int{v: True} -> y:int{v: True} -> int{v: True} / x\n\
-      \  in (f zero) zero"
+      {|
+      let zero = 0 in let rec f =
+         (fn a. (fn b. 42))
+         : x:int{v: True} -> y:int{v: True} -> int{v: True} / x
+      in (f zero) zero
+     |}
   in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: True}" in
@@ -577,9 +584,12 @@ let%test "constant curried fun terminates" =
 let%test "constant curried fun terminates (inner metric)" =
   let e =
     Parse.string_to_expr
-      "let zero = 0 in let rec f = (fn a. (fn b. 42))\n\
-      \   : x:int{v: True} -> y:int{v: True} -> int{v: True} / y\n\
-      \  in (f zero) zero"
+      {|
+       let zero = 0 in let rec f =
+           (fn a. (fn b. 42))
+           : x:int{v: True} -> y:int{v: True} -> int{v: True} / y
+       in (f zero) zero
+       |}
   in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: True}" in
@@ -590,12 +600,14 @@ let%test "constant curried fun terminates (inner metric)" =
 let%test "curried rec sub 1 until 0 terminates" =
   let e =
     Parse.string_to_expr
-      "let zero = 0 in let one = 1 in let rec f =\n\
-      \       (fn x. (fn y. let b = (lt x) one in\n\
-      \                 if b then 0 else\n\
-      \                 let newx = (sub x) one in (f newx) one))\n\
-      \   : x:int{v: v>=0} -> y:int{v: True} -> int{v: True} / x\n\
-      \  in (f zero) zero"
+      {|
+      let zero = 0 in let one = 1 in let rec f =
+             (fn x. (fn y. let b = (lt x) one in
+                       if b then 0 else
+                       let newx = (sub x) one in (f newx) one))
+         : x:int{v: v>=0} -> y:int{v: True} -> int{v: True} / x
+       in (f zero) zero
+     |}
   in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: True}" in
@@ -603,29 +615,22 @@ let%test "curried rec sub 1 until 0 terminates" =
   (* let _ = Pp.dbg @@ Pp.pp_constraint c in *)
   Solver.check c
 
-(* let%test "Let rec exp w/ recursive def. and annotation checks" = *)
-(*   let e = *)
-(*     Parse.string_to_expr *)
-(*       "let rec x = x : int{x: x = 42} : int{x: x = 42} / 0 in x" *)
-(*   in *)
-(*   let g = Typecheck.base_env in *)
-(*   let t = Parse.string_to_type "int{v: v = 42}" in *)
-(*   Solver.check (Typecheck.check g e t) *)
-
 let%test "sum of nats terminates" =
   let e =
     Parse.string_to_expr
-      "let one = 1 in\n\
-      \         let rec sum =\n\
-      \           (fn x.\n\
-      \             (let b = (lt x) one in\n\
-      \               if b then 0 else\n\
-      \                 let y = (sub x) one in\n\
-      \                 let z = sum y in\n\
-      \                   (add z) one))\n\
-      \         : x:int{v:True} -> int{v:True} / x\n\
-      \       in\n\
-      \       let a = 10 in sum a"
+      {|
+      let one = 1 in
+               let rec sum =
+                 (fn x.
+                   (let b = (lt x) one in
+                     if b then 0 else
+                       let y = (sub x) one in
+                       let z = sum y in
+                         (add z) one))
+               : x:int{v:True} -> int{v:True} / x
+             in
+             let a = 10 in sum a
+     |}
   in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: True}" in
@@ -635,16 +640,18 @@ let%test "sum of nats terminates" =
 let%test "sumT: recursion on multiple parameters terminates" =
   let e =
     Parse.string_to_expr
-      "let zero = 0 in let one = 1 in let ten = 10 in\n\
-      \         let rec sumT =\n\
-      \           (fn total.\n\
-      \             (fn x. let y = (lt x) one in\n\
-      \               if y then 0 else\n\
-      \                 let newtotal = (add total) one in\n\
-      \                 let newx     = (sub x) one     in\n\
-      \                   (sumT newtotal) newx))\n\
-      \           : total:int{v: True} -> x:int{v: v>=0} -> int{v: True} / x\n\
-      \       in (sumT zero) ten"
+      {|
+      let zero = 0 in let one = 1 in let ten = 10 in
+               let rec sumT =
+                 (fn total.
+                   (fn x. let y = (lt x) one in
+                     if y then 0 else
+                       let newtotal = (add total) one in
+                       let newx     = (sub x) one     in
+                         (sumT newtotal) newx))
+                 : total:int{v: True} -> x:int{v: v>=0} -> int{v: True} / x
+             in (sumT zero) t
+     |}
   in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: True}" in
