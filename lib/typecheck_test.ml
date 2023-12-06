@@ -693,7 +693,7 @@ let%test "range terminates: metrics can be decreasing expressions" =
                 let newi = (add i) one in
                 let tl = (range newi) j in (Cons i) tl
               else Nil))
-          : i:int{v: True} -> j:int{v: v >= i} -> list{v: True} / j - i
+          : i:int{v: True} -> j:int{v: True} -> list{v: True} / j - i
        in
        let x = 12 in
        let y = 42 in (range x) y
@@ -701,5 +701,4 @@ let%test "range terminates: metrics can be decreasing expressions" =
   in
   let t = Parse.string_to_type "list{v: True}" in
   let c = Typecheck.check ~denv:list_data_env Typecheck.base_env e t in
-  let _ = Pp.dbg @@ Pp.pp_constraint c in
   Solver.check ~fs:[ len ] c
