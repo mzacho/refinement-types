@@ -65,7 +65,11 @@ let base_env =
            Parse.string_to_type
              "x:int{v:True}->y:int{v:True}->bool{z:(~z | (x < y)) & (~(x < y) \
               | z)}" )
-        >: E_Empty))
+        >: (( "eq",
+              Parse.string_to_type
+                "x:int{v:True}->y:int{v:True}->bool{z:(~z | (x = y)) & (~(x = \
+                 y) | z)}" )
+           >: E_Empty)))
 
 exception Synthesis_error of string
 exception Subtyping_error of string
