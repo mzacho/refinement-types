@@ -192,20 +192,6 @@ let close_data (denv : data_env) (c : L.constraint_) : L.constraint_ =
   in
   List.fold_left cls c denv
 
-let rec split_lambdas (e1, t1) : (A.var * A.ty) list * A.expr * A.ty =
-  match (e1, t1) with
-  | A.E_Abs (xa, e), A.T_Arrow (xt, t1, t2) ->
-      let ys', e', t' = split_lambdas (e, t2) in
-      (ys' @ [ (xa, substitute_type xt xa t1) ], e', t')
-  | E_Abs _, T_Refined _ ->
-      raise
-        (Invalid_abs_expression
-           "Expected function type for E_Abs in split_lambdas")
-  | _, _ -> ([], e1, t1)
-
-let rec add_vars (g : env) (ys : (A.var * A.ty) list) : env =
-  match ys with [] -> g | (x, t) :: ys' -> (x, t) >: add_vars g ys'
-
 let rec check_sort (g : logic_env) (p : L.pred) (s : L.sort) : bool =
   match s with
   | L.S_Int -> (
@@ -248,7 +234,8 @@ let rec env_to_logic_env (g : env) : logic_env =
 (* todo: add as uninterpreted fun? *)
 
 let metric_wf (g : env) (m : A.metric) : bool =
-  metric_wf' (env_to_logic_env g) m
+  let r = metric_wf' (env_to_logic_env g) m in r
+  (* let _ = print "wf " ; dbg @@ pp_env @@ env_to_list g ; dbg @@ pp_metric m in r *)
 
 let rec wfr (m1 : A.metric) (m2 : A.metric) : L.pred =
   match (m1, m2) with
@@ -389,15 +376,13 @@ let check ?(debug = false) ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.c
                "Attempted to bind a variable under the same identifier as a \
                 data constructor (let-rec)")
         else
-          let ys, e1_body, t1_result = split_lambdas (e1, t1) in
-          let g' = add_vars g ys in
           (* check body of e1 with limited f *)
           let c1 =
-            check' ((f, limit_function g' m t1) >: g') e1_body t1_result
+            check' ((f, limit_function g m t1) >: g) e1 t1
           in
           (* check remaining e2 with non-limited f *)
-          let c2 = check' ((f, t1) >: g') e2 ty in
-          L.C_Conj (implications ys c1, c2)
+          let c2 = check' ((f, t1) >: g) e2 ty in
+          L.C_Conj (c1, c2)
     | E_Abs (x, e) -> (
         match ty with
         | A.T_Arrow (_, s, t) ->

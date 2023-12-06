@@ -550,9 +550,9 @@ let%test "rec sub one until 0 terminates" =
     Parse.string_to_expr
       "let zero = 0 in let one = 1 in let rec f =
           (fn x. let b = (lt x) one in
-                 if b then 0 else
-                 let newx = (sub x) one in f newx)
-         : x:int{v: v>=0} -> int{v: True} / x
+                 (if b then 0 else
+                 let newx = (sub x) one in f newx))
+         : x:int{v:True} -> int{v: True} / x
        in
          let ten = 10 in f ten"
   in
@@ -566,7 +566,36 @@ let%test "constant curried fun terminates" =
   let e =
     Parse.string_to_expr
       "let zero = 0 in let rec f = (fn a. (fn b. 42))\n\
-      \   : x:int{v: True} -> y:int{v: True} -> int{v: True} / t\n\
+      \   : x:int{v: True} -> y:int{v: True} -> int{v: True} / x\n\
+      \  in (f zero) zero"
+  in
+  let g = Typecheck.base_env in
+  let t = Parse.string_to_type "int{v: True}" in
+  let c = Typecheck.check g e t in
+  (* let _ = Pp.dbg @@ Pp.pp_constraint c in *)
+  Solver.check c
+
+let%test "constant curried fun terminates (inner metric)" =
+  let e =
+    Parse.string_to_expr
+      "let zero = 0 in let rec f = (fn a. (fn b. 42))\n\
+      \   : x:int{v: True} -> y:int{v: True} -> int{v: True} / y\n\
+      \  in (f zero) zero"
+  in
+  let g = Typecheck.base_env in
+  let t = Parse.string_to_type "int{v: True}" in
+  let c = Typecheck.check g e t in
+  (* let _ = Pp.dbg @@ Pp.pp_constraint c in *)
+  Solver.check c
+
+let%test "curried rec sub 1 until 0 terminates" =
+  let e =
+    Parse.string_to_expr
+      "let zero = 0 in let one = 1 in let rec f =
+       (fn x. (fn y. let b = (lt x) one in
+                 if b then 0 else
+                 let newx = (sub x) one in (f newx) one))\n\
+      \   : x:int{v: v>=0} -> y:int{v: True} -> int{v: True} / x\n\
       \  in (f zero) zero"
   in
   let g = Typecheck.base_env in
@@ -615,11 +644,11 @@ let%test "sumT: recursion on multiple parameters terminates" =
       \                 let newtotal = (add total) one in\n\
       \                 let newx     = (sub x) one     in\n\
       \                   (sumT newtotal) newx))\n\
-      \           : acc:int{v: True} -> x:int{v: True} -> int{v: True} / x\n\
+      \           : total:int{v: True} -> x:int{v: v>=0} -> int{v: True} / x\n\
       \       in (sumT zero) ten"
   in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: True}" in
-  let c = Typecheck.check ~debug:false g e t in
+  let c = Typecheck.check g e t in
   (* let _ = Pp.dbg @@ Pp.pp_constraint c in *)
   Solver.check c
