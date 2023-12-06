@@ -290,8 +290,8 @@ let limit_function (g : env) (m : A.metric) (ty : A.ty) : A.ty =
         | A.T_Refined (b, y, p) ->
             (* take previous fresh vars added to m into account when
                generating a new fresh var *)
-            let m'vars = collect_vars m' in
-            let x' = fresh_var ~extras:m'vars g in
+           let m_vars = collect_vars m in
+            let x' = fresh_var ~extras:m_vars g in
             (* substitute x' for the binder in the predicate *)
             let p_sub = L.substitute_pred x x' @@ L.substitute_pred y x p in
             (* substitute x' for the binder of the argument in the metric *)
@@ -308,7 +308,10 @@ let limit_function (g : env) (m : A.metric) (ty : A.ty) : A.ty =
                  "expected function argument to be a refined base type"))
     | T_Arrow (x, s, t) ->
         let g' = (x, s) >: g in
-        let x' = fresh_var g in
+        (* take previous fresh vars added to m into account when
+           generating a new fresh var *)
+        let m_vars = collect_vars m in
+        let x' = fresh_var ~extras:m_vars g in
         (* substitute x' for the binder of the argument in the metric *)
         let m_sub = List.map (L.substitute_pred x x') m in
         (* substitute x' for the binder of the argument in the result type *)
