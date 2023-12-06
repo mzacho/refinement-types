@@ -548,19 +548,18 @@ let%test "constant fun terminates" =
 let%test "rec sub one until 0 terminates" =
   let e =
     Parse.string_to_expr
-      "let zero = 0 in let one = 1 in let rec f =
-          (fn x. let b = (lt x) one in
-                 (if b then 0 else
-                 let newx = (sub x) one in f newx))
-         : x:int{v:True} -> int{v: True} / x
-       in
-         let ten = 10 in f ten"
+      "let zero = 0 in let one = 1 in let rec f =\n\
+      \          (fn x. let b = (lt x) one in\n\
+      \                 (if b then 0 else\n\
+      \                 let newx = (sub x) one in f newx))\n\
+      \         : x:int{v:True} -> int{v: True} / x\n\
+      \       in\n\
+      \         let ten = 10 in f ten"
   in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: True}" in
   let c = Typecheck.check ~debug:false g e t in
   Solver.check c
-
 
 let%test "constant curried fun terminates" =
   let e =
@@ -591,10 +590,10 @@ let%test "constant curried fun terminates (inner metric)" =
 let%test "curried rec sub 1 until 0 terminates" =
   let e =
     Parse.string_to_expr
-      "let zero = 0 in let one = 1 in let rec f =
-       (fn x. (fn y. let b = (lt x) one in
-                 if b then 0 else
-                 let newx = (sub x) one in (f newx) one))\n\
+      "let zero = 0 in let one = 1 in let rec f =\n\
+      \       (fn x. (fn y. let b = (lt x) one in\n\
+      \                 if b then 0 else\n\
+      \                 let newx = (sub x) one in (f newx) one))\n\
       \   : x:int{v: v>=0} -> y:int{v: True} -> int{v: True} / x\n\
       \  in (f zero) zero"
   in

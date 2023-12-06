@@ -234,8 +234,9 @@ let rec env_to_logic_env (g : env) : logic_env =
 (* todo: add as uninterpreted fun? *)
 
 let metric_wf (g : env) (m : A.metric) : bool =
-  let r = metric_wf' (env_to_logic_env g) m in r
-  (* let _ = print "wf " ; dbg @@ pp_env @@ env_to_list g ; dbg @@ pp_metric m in r *)
+  let r = metric_wf' (env_to_logic_env g) m in
+  r
+(* let _ = print "wf " ; dbg @@ pp_env @@ env_to_list g ; dbg @@ pp_metric m in r *)
 
 let rec wfr (m1 : A.metric) (m2 : A.metric) : L.pred =
   match (m1, m2) with
@@ -342,7 +343,8 @@ let switch_alternatives_exhaustive (dctors : (A.var * A.ty) list)
   List.for_all alt_matched_in_dctors alts
   && List.for_all dctor_matched_in_alts dctors
 
-let check ?(debug = false) ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
+let check ?(debug = false) ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) :
+    L.constraint_ =
   let rec check_alt (g : env) (y : A.var) (A.Alt (dcname, zs, e) : A.alt)
       (ty : A.ty) : L.constraint_ =
     let s =
@@ -377,9 +379,7 @@ let check ?(debug = false) ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.c
                 data constructor (let-rec)")
         else
           (* check body of e1 with limited f *)
-          let c1 =
-            check' ((f, limit_function g m t1) >: g) e1 t1
-          in
+          let c1 = check' ((f, limit_function g m t1) >: g) e1 t1 in
           (* check remaining e2 with non-limited f *)
           let c2 = check' ((f, t1) >: g) e2 ty in
           L.C_Conj (c1, c2)
@@ -447,7 +447,6 @@ let check ?(debug = false) ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.c
     | _ ->
         raise
           (Synthesis_error ("Could not synthesize expression: " ^ pp_expr e))
-
   and check' (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
     let _ =
       if debug then (
