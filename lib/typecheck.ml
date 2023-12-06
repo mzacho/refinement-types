@@ -317,8 +317,10 @@ let limit_function (g : env) (m : A.metric) (ty : A.ty) : A.ty =
         (* return the limited arrow type *)
         A.T_Arrow (x', s_sub, t')
     | _ ->
-        dbg @@ pp_ty ty;
-        failwith "todo"
+        raise
+          (Termination_error
+             ("Could not limit type: " ^ pp_type ty ^ " / " ^ doc_to_string
+            @@ pp_metric m'))
   in
   limit' g m m ty
 
