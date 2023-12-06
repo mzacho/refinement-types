@@ -537,7 +537,7 @@ let%test "constant fun terminates" =
   let e =
     Parse.string_to_expr
       "let zero = 0 in let rec f = (fn x. 42)\n\
-      \   : acc:int{v: True} -> int{v: True} / x\n\
+      \   : x:int{v: True} -> int{v: True} / x\n\
       \  in f zero"
   in
   let g = Typecheck.base_env in

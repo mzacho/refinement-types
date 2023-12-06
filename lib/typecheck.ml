@@ -217,7 +217,7 @@ let rec check_sort (g : logic_env) (p : L.pred) (s : L.sort) : bool =
           try
             let _, s' = List.find (fun (y, _) -> String.equal y x) g in
             s' = L.S_Int
-          with Not_found -> true)
+          with Not_found -> false)
       | P_FunApp (_, _) -> true (* TODO: lookup codomain of uninterpreted fun *)
       | _ -> false)
   | L.S_Bool -> failwith "unimplemented"
