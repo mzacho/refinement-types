@@ -557,7 +557,7 @@ let%test "rec sub one until 0 terminates" =
                        let newx = (sub x) one in f newx))
                : x:int{v:True} -> int{v: True} / x
              in
-             let ten = 10 in f t
+             let ten = 10 in f ten
       |}
   in
   let g = Typecheck.base_env in
@@ -650,7 +650,7 @@ let%test "sumT: recursion on multiple parameters terminates" =
                        let newx     = (sub x) one     in
                          (sumT newtotal) newx))
                  : total:int{v: True} -> x:int{v: v>=0} -> int{v: True} / x
-             in (sumT zero) t
+             in (sumT zero) ten
      |}
   in
   let g = Typecheck.base_env in
@@ -658,3 +658,48 @@ let%test "sumT: recursion on multiple parameters terminates" =
   let c = Typecheck.check g e t in
   (* let _ = Pp.dbg @@ Pp.pp_constraint c in *)
   Solver.check c
+
+let%test "sumT: recursion on multiple parameters terminates" =
+  let e =
+    Parse.string_to_expr
+      {|
+      let zero = 0 in let one = 1 in let ten = 10 in
+               let rec sumT =
+                 (fn total.
+                   (fn x. let y = (lt x) one in
+                     if y then 0 else
+                       let newtotal = (add total) one in
+                       let newx     = (sub x) one     in
+                         (sumT newtotal) newx))
+                 : total:int{v: True} -> x:int{v: v>=0} -> int{v: True} / x
+             in (sumT zero) ten
+     |}
+  in
+  let g = Typecheck.base_env in
+  let t = Parse.string_to_type "int{v: True}" in
+  let c = Typecheck.check g e t in
+  (* let _ = Pp.dbg @@ Pp.pp_constraint c in *)
+  Solver.check c
+
+let%test "range terminates: metrics can be decreasing expressions" =
+  let e =
+    Parse.string_to_expr
+      {|
+      let one = 1 in let rec range =
+          (fn i.
+            (fn j. let b = (lt i) j in
+              if b
+              then
+                let newi = (add i) one in
+                let tl = (range newi) j in (Cons i) tl
+              else Nil))
+          : i:int{v: True} -> j:int{v: v >= i} -> list{v: True} / j - i
+       in
+       let x = 12 in
+       let y = 42 in (range x) y
+     |}
+  in
+  let t = Parse.string_to_type "list{v: True}" in
+  let c = Typecheck.check ~denv:list_data_env Typecheck.base_env e t in
+  let _ = Pp.dbg @@ Pp.pp_constraint c in
+  Solver.check ~fs:[ len ] c

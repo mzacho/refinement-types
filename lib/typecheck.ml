@@ -144,7 +144,10 @@ let rec sub (s : A.ty) (t : A.ty) : L.constraint_ =
       match t with
       | T_Refined (b', v2, p2) ->
           if not (b = b') then
-            raise (Subtyping_error "Refined types have different base types")
+            raise
+              (Subtyping_error
+                 ("Refined types have different base types: " ^ pp_type s
+                ^ " and " ^ pp_type t))
           else (v1, ty_to_sort b, p1) ==> L.C_Pred (L.substitute_pred v2 v1 p2)
       | T_Arrow _ -> raise (Subtyping_error "Expected refined type"))
   | T_Arrow (x1, s1, t1) -> (
@@ -162,14 +165,34 @@ let self (v : A.var) (t : A.ty) : A.ty =
       T_Refined (b, v', L.P_Conj (p, L.P_Op (O_Eq, P_Var v, P_Var v')))
   | T_Arrow _ -> t
 
-let fresh_var (g : env) : A.var =
+let fresh_var ?(extras = []) (g : env) : A.var =
+  let rec lookup_extras (vs : A.var list) (x : A.var) =
+    match vs with
+    | [] -> None
+    | v :: vs -> if String.equal v x then Some v else lookup_extras vs x
+  in
   let rec fresh_var' (suffix_candidate : int) =
     let var_cand = "fr" ^ Printf.sprintf "%d" suffix_candidate in
-    match lookup g var_cand with
-    | None -> var_cand
-    | Some _ -> fresh_var' (suffix_candidate + 1)
+    match (lookup g var_cand, lookup_extras extras var_cand) with
+    | None, None -> var_cand
+    | _ -> fresh_var' (suffix_candidate + 1)
   in
   fresh_var' 0
+
+let collect_vars (m : A.metric) : A.var list =
+  let rec f (p : L.pred) : A.var list =
+    match p with
+    | L.P_Var x -> [ x ]
+    | L.P_True -> []
+    | L.P_False -> []
+    | L.P_Int _ -> []
+    | L.P_Op (_, p1, p2) -> f p1 @ f p2
+    | L.P_Disj (p1, p2) -> f p1 @ f p2
+    | L.P_Conj (p1, p2) -> f p1 @ f p2
+    | L.P_Neg _ -> f p
+    | L.P_FunApp (g, ps) -> List.fold_left (fun acc p -> acc @ f p) [ g ] ps
+  in
+  List.fold_left (fun acc p -> acc @ f p) [] m
 
 (* see ENT-EXT *)
 let rec close (g : env) (c : L.constraint_) : L.constraint_ =
@@ -258,10 +281,13 @@ let rec wfr (m1 : A.metric) (m2 : A.metric) : L.pred =
 let limit_function (g : env) (m : A.metric) (ty : A.ty) : A.ty =
   let rec limit' (g : env) (m' : A.metric) (m : A.metric) (ty : A.ty) : A.ty =
     match ty with
-    | T_Arrow (x, s, t) when metric_wf ((x, s) >: g) m -> (
+    | T_Arrow (x, s, t) when metric_wf ((x, s) >: g) m' -> (
         match s with
         | A.T_Refined (b, y, p) ->
-            let x' = fresh_var g in
+            (* take previous fresh vars added to m into account when
+               generating a new fresh var *)
+            let m'vars = collect_vars m' in
+            let x' = fresh_var ~extras:m'vars g in
             (* substitute x' for the binder in the predicate *)
             let p_sub = L.substitute_pred x x' @@ L.substitute_pred y x p in
             (* substitute x' for the binder of the argument in the metric *)

@@ -74,7 +74,10 @@ let check ?(fs = []) (c : constraint_) =
       | P_Conj (p1, p2) -> Boolean.mk_and ctx [ b_exp_p p1; b_exp_p p2 ]
       | P_Neg p' -> Boolean.mk_not ctx (b_exp_p p')
       | P_FunApp (f, args) ->
-          let fdecl = H.find m_fun f in
+          let fdecl =
+            try H.find m_fun f
+            with Not_found -> failwith ("fun var not found: " ^ f)
+          in
           let e_args = List.map b_exp_p args in
           FuncDecl.apply fdecl e_args
     in
