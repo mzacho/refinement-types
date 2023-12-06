@@ -5,6 +5,8 @@ open Logic
 
 let int i = PPrint.string @@ Printf.sprintf "%d" i
 let str s = PPrint.string s
+let nl = PPrint.hardline
+let nest = PPrint.nest 2
 let ( ^^ ) = PPrint.( ^^ )
 
 let pp_op (o : op) : PPrint.document =
@@ -36,10 +38,12 @@ let pp_sort (s : sort) : PPrint.document =
 let rec pp_constraint (c : constraint_) : PPrint.document =
   match c with
   | C_Pred p -> pp_pred p
-  | C_Conj (c1, c2) -> pp_constraint c1 ^^ str " ∧ " ^^ pp_constraint c2
+  | C_Conj (c1, c2) -> pp_constraint c1 ^^ str " ∧ " ^^ nl ^^ pp_constraint c2
   | C_Implication (v, s, p, c) ->
       str "(∀" ^^ str v ^^ str ":" ^^ pp_sort s ^^ str ". " ^^ pp_pred p
-      ^^ str " ⇒ " ^^ pp_constraint c ^^ str ")"
+      ^^ str " ⇒ " ^^ nl
+      ^^ nest (pp_constraint c)
+      ^^ str ")"
 
 let rec pp_ty (t : ty) : PPrint.document =
   match t with

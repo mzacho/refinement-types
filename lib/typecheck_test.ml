@@ -494,12 +494,12 @@ let outer_sig =
 let sum_specialized_foldl_def =
   Printf.sprintf
     {|
-   let rec foldl =
-   (fn f. (fn acc. (fn xs.
-   switch xs {
-   | Nil => acc
-   | Cons(hd, tl) => let res = f acc hd in foldl f res tl
-   }):%s):%s):%s / len(xs)
+     let rec foldl =
+       (fn f. (fn acc. (fn xs.
+         switch xs {
+          | Nil => acc
+          | Cons(hd, tl) => let res = f acc hd in foldl f res tl
+         }):%s):%s):%s / len(xs)
    |}
     inner_sig middle_sig outer_sig
 
@@ -528,8 +528,10 @@ let%test "fold left add" =
          sum_specialized_foldl_def)
   in
   let t = Parse.string_to_type "xs:list{v: True} -> int{v: v = listsum(xs)}" in
-  let c = Typecheck.check ~denv:list_data_env' Typecheck.base_env e t in
-  Solver.check ~fs:[ listsum ] c
+  let c =
+    Typecheck.check ~debug:false ~denv:list_data_env' Typecheck.base_env e t
+  in
+  Solver.check ~fs:[ listsum; len ] c
 
 (* ------------------------ termination ------------------------------- *)
 

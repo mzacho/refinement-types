@@ -183,21 +183,6 @@ let fresh_var ?(extras = []) (g : env) : A.var =
   in
   fresh_var' 0
 
-let collect_vars (m : A.metric) : A.var list =
-  let rec f (p : L.pred) : A.var list =
-    match p with
-    | L.P_Var x -> [ x ]
-    | L.P_True -> []
-    | L.P_False -> []
-    | L.P_Int _ -> []
-    | L.P_Op (_, p1, p2) -> f p1 @ f p2
-    | L.P_Disj (p1, p2) -> f p1 @ f p2
-    | L.P_Conj (p1, p2) -> f p1 @ f p2
-    | L.P_Neg _ -> f p
-    | L.P_FunApp (g, ps) -> List.fold_left (fun acc p -> acc @ f p) [ g ] ps
-  in
-  List.fold_left (fun acc p -> acc @ f p) [] m
-
 (* see ENT-EXT *)
 let rec close (g : env) (c : L.constraint_) : L.constraint_ =
   match g with
@@ -219,19 +204,37 @@ let close_data (denv : data_env) (c : L.constraint_) : L.constraint_ =
   in
   List.fold_left cls c denv
 
-let rec check_sort (g : logic_env) (p : L.pred) (s : L.sort) : bool =
+let rec check_bound (g : logic_env) (p : L.pred) : bool =
+  match p with
+  | L.P_Var x -> List.exists (fun (y, _) -> String.equal y x) g
+  | L.P_True -> true
+  | L.P_False -> true
+  | L.P_Int _ -> true
+  | L.P_Op (_, p1, p2) -> check_bound g p1 && check_bound g p2
+  | L.P_Disj (p1, p2) -> check_bound g p1 && check_bound g p2
+  | L.P_Conj (p1, p2) -> check_bound g p1 && check_bound g p2
+  | L.P_Neg p -> check_bound g p
+  | L.P_FunApp (_, ps) ->
+      List.fold_left (fun b p -> b && check_bound g p) true ps
+
+let rec check_sort (g : logic_env) (s : L.sort) (p : L.pred) : bool =
   match s with
   | L.S_Int -> (
       match p with
       | L.P_Int _ -> true
       (* check that both predicates are int-sorted *)
-      | L.P_Op (_, p1, p2) -> check_sort g p1 s && check_sort g p2 s
+      | L.P_Op (_, p1, p2) -> check_sort g s p1 && check_sort g s p2
       | L.P_Var x -> (
           try
             let _, s' = List.find (fun (y, _) -> String.equal y x) g in
             s' = L.S_Int
           with Not_found -> false)
-      | P_FunApp (_, _) -> true (* TODO: lookup codomain of uninterpreted fun *)
+      | P_FunApp (_, ps) ->
+          (* TODO: lookup codomain of uninterpreted fun - this
+             currently just checks that all vars that appear in ps
+             are bound in gamma, thus assuming that all functions
+             map to the integers *)
+          List.fold_left (fun b p -> b && check_bound g p) true ps
       | _ -> false)
   | L.S_Bool -> failwith "unimplemented"
   | L.S_TyCtor _ -> failwith "unimplemented"
@@ -241,7 +244,7 @@ let rec metric_wf' (g : logic_env) (m : A.metric) : bool =
   | [] -> true
   | p :: m' ->
       (* check that p is int sorted *)
-      let b = check_sort g p L.S_Int in
+      let b = check_sort g L.S_Int p in
       b && metric_wf' g m'
 
 let rec env_to_logic_env (g : env) : logic_env =
@@ -283,15 +286,15 @@ let rec wfr (m1 : A.metric) (m2 : A.metric) : L.pred =
 (* g contains actual parameters of fn already, so fresh(g) doesn't clash
    (TODO: maybe change fresh to accept a prefix so we don't lose the var name?) *)
 let limit_function (g : env) (m : A.metric) (ty : A.ty) : A.ty =
-  let rec limit' (g : env) (m' : A.metric) (m : A.metric) (ty : A.ty) : A.ty =
+  let rec limit' (g : env) (m' : A.metric) (m : A.metric) (ty : A.ty)
+      (fv : A.var list) : A.ty =
     match ty with
     | T_Arrow (x, s, t) when metric_wf ((x, s) >: g) m' -> (
         match s with
         | A.T_Refined (b, y, p) ->
             (* take previous fresh vars added to m into account when
                generating a new fresh var *)
-            let m_vars = collect_vars m in
-            let x' = fresh_var ~extras:m_vars g in
+            let x' = fresh_var ~extras:fv g in
             (* substitute x' for the binder in the predicate *)
             let p_sub = L.substitute_pred x x' @@ L.substitute_pred y x p in
             (* substitute x' for the binder of the argument in the metric *)
@@ -310,14 +313,13 @@ let limit_function (g : env) (m : A.metric) (ty : A.ty) : A.ty =
         let g' = (x, s) >: g in
         (* take previous fresh vars added to m into account when
            generating a new fresh var *)
-        let m_vars = collect_vars m in
-        let x' = fresh_var ~extras:m_vars g in
+        let x' = fresh_var ~extras:fv g in
         (* substitute x' for the binder of the argument in the metric *)
         let m_sub = List.map (L.substitute_pred x x') m in
         (* substitute x' for the binder of the argument in the result type *)
         let t_sub = substitute_type x x' t in
         (* limit the result type by calling recursively *)
-        let t' = limit' g' m' m_sub t_sub in
+        let t' = limit' g' m' m_sub t_sub (x' :: fv) in
         (* substitute x' for the binder of the argument its type
            - not sure if this is correct, since substitute_type is capture avoiding? *)
         let s_sub = substitute_type x x' s in
@@ -329,7 +331,7 @@ let limit_function (g : env) (m : A.metric) (ty : A.ty) : A.ty =
              ("Could not limit type: " ^ pp_type ty ^ " / " ^ doc_to_string
             @@ pp_metric m'))
   in
-  limit' g m m ty
+  limit' g m m ty []
 
 let rec meet (t1 : A.ty) (t2 : A.ty) : A.ty =
   match (t1, t2) with
