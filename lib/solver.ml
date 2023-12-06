@@ -11,7 +11,7 @@ exception Constraint_not_closed of string
   3. Now c = forall x0, x1, ..., xn . p => c'
   4. It suffices to check that there are no satisfying assignments of ~ (p => c')
   NOTE: Assume that c is closed under Γ, well-formed/ well-sorted, with respect to logical predicates *)
-let check ?(fs = []) (c : constraint_) =
+let check ?(dbg = false) ?(fs = []) (c : constraint_) =
   let ctx = mk_context [] in
   (* m_var keeps track of mapping between (our) variables and z3 variables *)
   let m_var : (var, Expr.expr) H.t = H.create 10 in
@@ -56,7 +56,7 @@ let check ?(fs = []) (c : constraint_) =
             H.add m_var v (Expr.mk_const_s ctx v (H.find m_sort tc)))
     | _ -> ()
   in
-  let add_fun ((f, params, ret) : uninterp_fun) =
+  let add_fun ((f, params, ret, _) : uninterp_fun) =
     let param_sorts = List.map translate_sort params in
     let ret_sort = translate_sort ret in
     let fdecl = FuncDecl.mk_fresh_func_decl ctx f param_sorts ret_sort in
@@ -89,13 +89,30 @@ let check ?(fs = []) (c : constraint_) =
     b_exp_c c
   in
   let _ = List.map add_fun fs in
-  let fv = Logic.collect_fv_c c in
+  let c_new =
+    List.fold_left
+      (fun c (_, _, _, f_cstr) ->
+        Option.fold ~none:c
+          ~some:(fun f_cstr ->
+            match f_cstr with
+            | Logic.C_Implication (x, b, p, c') ->
+                Logic.C_Implication (x, b, p, Logic.C_Conj (c', c))
+            | c' -> Logic.C_Conj (c, c'))
+          f_cstr)
+      c fs
+  in
+  let fv = Logic.collect_fv_c c_new in
   if fv != [] then raise (Constraint_not_closed (String.concat "," fv))
   else
-    let c' = uniqueify_binders c in
+    let c' = uniqueify_binders c_new in
     let formula = Boolean.mk_not ctx (build_expr c') in
     let solver = Solver.mk_solver ctx None in
     match Solver.check solver [ formula ] with
-    | Solver.SATISFIABLE -> false
+    | Solver.SATISFIABLE ->
+        if dbg then
+          Solver.get_model solver
+          |> Option.fold ~none:() ~some:(fun m ->
+                 print_endline @@ Model.to_string m);
+        false
     | Solver.UNSATISFIABLE -> true
     | Solver.UNKNOWN -> failwith "Z3 returned unknown"

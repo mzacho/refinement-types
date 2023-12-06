@@ -1,7 +1,6 @@
 type var = string
 type op = O_Add | O_Sub | O_Eq | O_Lt | O_Le | O_Ge | O_Gt
 type sort = S_Int | S_Bool | S_TyCtor of string
-type uninterp_fun = var * sort list * sort (* f : (X1, X2, ..., Xn) -> Y *)
 
 type pred =
   | P_Var of var
@@ -18,6 +17,9 @@ type constraint_ =
   | C_Pred of pred
   | C_Conj of (constraint_ * constraint_)
   | C_Implication of (var * sort * pred * constraint_)
+
+(* f : (X1, X2, ..., Xn) -> Y *)
+type uninterp_fun = var * sort list * sort * constraint_ option
 
 (* Convenience implication infix operator:
    forall x:b. p => c ::= (x, b, p) ==> c

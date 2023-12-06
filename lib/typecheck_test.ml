@@ -1,5 +1,7 @@
 (* open Pp *)
 
+open Logic
+
 (* Subtyping tests *)
 let%test "Fail subtyping: int <: (int -> int)" =
   let t = Parse.string_to_type "int{v: False}" in
@@ -237,7 +239,7 @@ let%test "Typechecking under a data environment with constructors (of \
   with Typecheck.Data_env_illformed_error _ -> true
 
 let rgb_sort = Logic.S_TyCtor "rgb"
-let isgreen : Logic.uninterp_fun = ("isgreen", [ rgb_sort ], Logic.S_Bool)
+let isgreen : Logic.uninterp_fun = ("isgreen", [ rgb_sort ], Logic.S_Bool, None)
 
 let rgb_data_env =
   let tc =
@@ -313,7 +315,14 @@ let%test "Typechecking switch expression against non-existent constructor fails"
   with Typecheck.Switch_error _ -> true
 
 let list_sort = Logic.S_TyCtor "list"
-let len : Logic.uninterp_fun = ("len", [ list_sort ], Logic.S_Int)
+
+let len : Logic.uninterp_fun =
+  ( "len",
+    [ list_sort ],
+    S_Int,
+    Some
+      (("l", list_sort, P_Op (O_Le, P_Int 0, P_FunApp ("len", [ P_Var "l" ])))
+      ==> C_Pred P_True) )
 
 let list_tc =
   Parse.string_to_ty_ctor
@@ -333,7 +342,8 @@ let doublelist_tc =
  | DCons(x:int{v: True}, y:int{v: True}, xs:doublelist{v: True}).
        |}
 
-let list_data_env = Typecheck.build_data_env [ list_tc; doublelist_tc ]
+let list_data_env = Typecheck.build_data_env [ list_tc ]
+let list_data_env' = Typecheck.build_data_env [ list_tc; doublelist_tc ]
 
 let%test "Incorrect constructor pattern in switch expression" =
   let e =
@@ -355,7 +365,7 @@ let%test "Typechecking switch expression on variable fails when alternatives \
   let t = Parse.string_to_type "bool{b: True}" in
   try
     Solver.check ~fs:[ len ]
-      (Typecheck.check ~denv:list_data_env Typecheck.base_env e t)
+      (Typecheck.check ~denv:list_data_env' Typecheck.base_env e t)
   with Typecheck.Switch_error _ -> true
 
 let%test "Typechecking let expression that binds a variable with the same name \
@@ -406,7 +416,7 @@ let%test "Typechecking switch on variable of non-value type (partially applied \
 let%test "Nil has length 0" =
   let e = Parse.string_to_expr "let x = Nil in x" in
   let t = Parse.string_to_type "list{v: len(x) = 0}" in
-  Solver.check ~fs:[ len ]
+  Solver.check ~dbg:true ~fs:[ len ]
     (Typecheck.check ~denv:list_data_env Typecheck.base_env e t)
 
 let%test "Singleton function outputs list of length 1" =
@@ -522,7 +532,7 @@ let sum_specialized_foldl_def =
    |}
     inner_sig middle_sig outer_sig
 
-let listsum = ("listsum", [ list_sort ], Logic.S_Int)
+let listsum = ("listsum", [ list_sort ], Logic.S_Int, None)
 
 let list_tc' =
   Parse.string_to_ty_ctor
