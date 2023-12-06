@@ -1,9 +1,5 @@
 ## ATPLT 2023 - Refinement types
 
-### Syntax
-
-The first Lambda language as described in the notes
-
 ### Setup
 Install the required libraries with opam:
 ```
