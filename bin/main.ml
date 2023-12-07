@@ -36,7 +36,21 @@ let ack_fs = []
 let ack_denv = []
 let ack_gamma = M.Typecheck.base_env
 
-(****** LENGTH REFLECT LEN *******)
+(****** LOOP *******)
+let loop_expr =
+  M.Parse.string_to_expr
+    {|
+    let rec f =
+      (fn n. f n) : n:int{v: True} -> int{v:True} / n
+    in 42
+  |}
+
+let loop_type = M.Parse.string_to_type "int{v: True}"
+let loop_fs = []
+let loop_denv = []
+let loop_gamma = M.Typecheck.E_Empty
+
+(****** LIST DATATYPES *******)
 let list_sort = S_TyCtor "list"
 
 let len : uninterp_fun =
@@ -57,6 +71,7 @@ type list =
 
 let list_data_env = M.Typecheck.build_data_env [ list_tc ]
 
+(****** LENGTH REFLECT LEN *******)
 let length_expr =
   M.Parse.string_to_expr
     {|
@@ -112,6 +127,8 @@ let set_program s =
   match s with
   | "42" ->
       program := Some (ex_42_expr, ex_42_type, ex_42_fs, ex_42_denv, ex_42_gamma)
+  | "loop" ->
+      program := Some (loop_expr, loop_type, loop_fs, loop_denv, loop_gamma)
   | "ackermann" ->
       program := Some (ack_expr, ack_type, ack_fs, ack_denv, ack_gamma)
   | "length" ->
