@@ -111,3 +111,18 @@ let occurs_free_p (v : var) (p : pred) : bool = List.mem v (collect_fv_p p)
 
 let occurs_free_c (v : var) (c : constraint_) : bool =
   List.mem v (collect_fv_c c)
+
+let rec simplify_pred (p : pred) : pred =
+  match p with
+  | P_Conj (P_True, p2) -> simplify_pred p2
+  | P_Conj (p1, P_True) -> simplify_pred p1
+  | _ -> p
+
+let rec simplify_constr (c : constraint_) : constraint_ =
+  match c with
+  | C_Conj (C_Pred P_True, c') -> simplify_constr c'
+  | C_Conj (c', C_Pred P_True) -> simplify_constr c'
+  | C_Conj (c', c'') -> C_Conj (simplify_constr c', simplify_constr c'')
+  | C_Implication (v, x, p, c') ->
+      C_Implication (v, x, simplify_pred p, simplify_constr c')
+  | C_Pred p -> C_Pred (simplify_pred p)

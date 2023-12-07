@@ -595,5 +595,5 @@ let check ?(fs = []) ?(debug = false) ?(denv = []) (g : env) (e : A.expr)
   match check_data_env denv with
   | R.Ok denv ->
       (* returned constraints are closed *)
-      close_data denv @@ close g (check' g e ty)
+      close_data denv @@ close g @@ L.simplify_constr @@ check' g e ty
   | R.Error e -> raise e
