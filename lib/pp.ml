@@ -5,6 +5,8 @@ open Logic
 
 let int i = PPrint.string @@ Printf.sprintf "%d" i
 let str s = PPrint.string s
+let nl = PPrint.hardline
+let nest = PPrint.nest 2
 let ( ^^ ) = PPrint.( ^^ )
 
 let pp_op (o : op) : PPrint.document =
@@ -24,8 +26,8 @@ let rec pp_pred (p : pred) : PPrint.document =
   | P_False -> str "False"
   | P_Int i -> int i
   | P_Op (op, p, p') -> pp_pred p ^^ pp_op op ^^ pp_pred p'
-  | P_Disj (p, p') -> pp_pred p ^^ str " ∨ " ^^ pp_pred p'
-  | P_Conj (p, p') -> pp_pred p ^^ str " ∧ " ^^ pp_pred p'
+  | P_Disj (p, p') -> str "(" ^^ pp_pred p ^^ str " ∨ " ^^ pp_pred p' ^^ str ")"
+  | P_Conj (p, p') -> str "(" ^^ pp_pred p ^^ str " ∧ " ^^ pp_pred p' ^^ str ")"
   | P_Neg p -> str "¬" ^^ pp_pred p
   | P_FunApp (f, args) ->
       str f ^^ str "(" ^^ PPrint.separate_map (str ", ") pp_pred args ^^ str ")"
@@ -36,10 +38,12 @@ let pp_sort (s : sort) : PPrint.document =
 let rec pp_constraint (c : constraint_) : PPrint.document =
   match c with
   | C_Pred p -> pp_pred p
-  | C_Conj (c1, c2) -> pp_constraint c1 ^^ str " ∧ " ^^ pp_constraint c2
+  | C_Conj (c1, c2) -> pp_constraint c1 ^^ str " ∧ " ^^ nl ^^ pp_constraint c2
   | C_Implication (v, s, p, c) ->
       str "(∀" ^^ str v ^^ str ":" ^^ pp_sort s ^^ str ". " ^^ pp_pred p
-      ^^ str " ⇒ " ^^ pp_constraint c ^^ str ")"
+      ^^ str " ⇒ " ^^ nl
+      ^^ nest (pp_constraint c)
+      ^^ str ")"
 
 let rec pp_ty (t : ty) : PPrint.document =
   match t with
@@ -53,6 +57,21 @@ let rec pp_ty (t : ty) : PPrint.document =
       base_ty ^^ str "{" ^^ str v ^^ str ":" ^^ pp_pred p ^^ str "}"
   | T_Arrow (v, t, t') -> str v ^^ str ":" ^^ pp_ty t ^^ str "->" ^^ pp_ty t'
 
+let rec pp_metric (m : metric) : PPrint.document =
+  match m with
+  | [] -> str ""
+  | p :: [] -> pp_pred p
+  | p :: m' -> pp_pred p ^^ str ", " ^^ pp_metric m'
+
+let pp_env (g : (var * ty) list) : PPrint.document =
+  let rec aux g =
+    match g with
+    | [] -> str ""
+    | [ (x, t) ] -> str x ^^ str ":" ^^ pp_ty t
+    | (x, t) :: g' -> str x ^^ str ":" ^^ pp_ty t ^^ str ", " ^^ aux g'
+  in
+  str "[" ^^ aux g ^^ str "]"
+
 let rec pp_expr' (e : expr) : PPrint.document =
   match e with
   | E_Const n -> int n
@@ -60,10 +79,11 @@ let rec pp_expr' (e : expr) : PPrint.document =
   | E_Abs (v, e) -> str "(fn " ^^ str v ^^ str ": " ^^ pp_expr' e ^^ str ")"
   | E_App (e, v) -> pp_expr' e ^^ str " " ^^ str v
   | E_Let (v, e1, e2) ->
-      str "let " ^^ str v ^^ str "." ^^ pp_expr' e1 ^^ str "in" ^^ pp_expr' e2
-  | E_RLet (v, e1, t, e2) ->
-      str "let rec " ^^ str v ^^ str "." ^^ pp_expr' e1 ^^ str ":" ^^ pp_ty t
-      ^^ str "in" ^^ pp_expr' e2
+      str "let " ^^ str v ^^ str " = " ^^ pp_expr' e1 ^^ str " in "
+      ^^ pp_expr' e2
+  | E_RLet (v, e1, t, m, e2) ->
+      str "let rec " ^^ str v ^^ str " = " ^^ pp_expr' e1 ^^ str " : "
+      ^^ pp_ty t ^^ str " / " ^^ pp_metric m ^^ str " in " ^^ pp_expr' e2
   | E_Ann (e, t) -> pp_expr' e ^^ str ":" ^^ pp_ty t
   | E_True -> str "true"
   | E_False -> str "false"
@@ -84,7 +104,11 @@ let dbg d : unit =
   Printf.fprintf ch "%s\n" "";
   flush_all ()
 
-let print s : unit = Printf.fprintf stdout "%s\n" s
+let print s : unit = Printf.fprintf stdout "%s" s
+
+let rec print_indent indent =
+  if indent = 0 then () else print_indent (indent - 1);
+  print "." (* (Printf.sprintf " %i " indent) *)
 
 let doc_to_string (doc : PPrint.document) : string =
   let buf = Buffer.create 0 in

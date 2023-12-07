@@ -4,7 +4,8 @@
 
 %token <int> NAT
 %token <string> VAR
-%token PLUS MINUS TIMES DIV AND OR NEG DOT
+%token NEG
+%token PLUS MINUS TIMES DIV AND OR DOT
 %token LPAREN RPAREN LBRACK RBRACK COLON COMMA RARROW
 %token FN LET REC IN E_TRUE E_FALSE IF THEN ELSE
 %token TYPE SWITCH RDBLARROW
@@ -13,7 +14,9 @@
 %token EOF
 %left OR         /* for associative tokens: precedence increases downwards */
 %left AND
-%left EQ NEQ GE GT LE LT
+%left EQ NEQ
+%left NEG
+%left GE GT LE LT
 %left PLUS MINUS
 %left TIMES DIV
 
@@ -45,8 +48,8 @@ expr:
   | expr VAR { Ast.E_App ($1, $2) }
   | LET VAR EQ expr IN expr
     { Ast.E_Let ($2, $4, $6) }
-  | LET REC VAR EQ expr COLON ty IN expr
-    { Ast.E_RLet ($3, $5, $7, $9) }
+  | LET REC VAR EQ expr COLON ty DIV metric IN expr
+    { Ast.E_RLet ($3, $5, $7, $9, $11) }
   | expr COLON ty
     { Ast.E_Ann ($1, $3) }
   | IF VAR THEN expr ELSE expr { Ast.E_If ($2, $4, $6) }
@@ -58,6 +61,12 @@ expr1:
 
 alt:
   | VAR plist(COMMA, VAR) RDBLARROW expr { Ast.Alt ($1, $2, $4) }
+
+metric:
+  | pred /* decreasing expression */
+     { [$1] }
+  | pred COMMA metric /* lexicographic metric */
+     { [$1] @ $3 }
 
 pred:
   | VAR { Logic.P_Var $1 }

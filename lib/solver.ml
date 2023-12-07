@@ -11,7 +11,7 @@ exception Constraint_not_closed of string
   3. Now c = forall x0, x1, ..., xn . p => c'
   4. It suffices to check that there are no satisfying assignments of ~ (p => c')
   NOTE: Assume that c is closed under Γ, well-formed/ well-sorted, with respect to logical predicates *)
-let check ?(fs = []) (c : constraint_) =
+let check ?(dbg = false) ?(fs = []) (c : constraint_) =
   let ctx = mk_context [] in
   (* m_var keeps track of mapping between (our) variables and z3 variables *)
   let m_var : (var, Expr.expr) H.t = H.create 10 in
@@ -19,6 +19,7 @@ let check ?(fs = []) (c : constraint_) =
   let m_sort : (var, Sort.sort) H.t = H.create 10 in
   (* m_fun keeps track of uninterpreted functions *)
   let m_fun : (var, FuncDecl.func_decl) H.t = H.create 10 in
+  let quant_counter = ref 0 in
   let op_to_z3_op (o : op) =
     match o with
     | O_Add -> fun e1 e2 -> Arithmetic.mk_add ctx [ e1; e2 ]
@@ -56,7 +57,7 @@ let check ?(fs = []) (c : constraint_) =
             H.add m_var v (Expr.mk_const_s ctx v (H.find m_sort tc)))
     | _ -> ()
   in
-  let add_fun ((f, params, ret) : uninterp_fun) =
+  let add_fun ((f, params, ret, _) : uninterp_fun) =
     let param_sorts = List.map translate_sort params in
     let ret_sort = translate_sort ret in
     let fdecl = FuncDecl.mk_fresh_func_decl ctx f param_sorts ret_sort in
@@ -94,8 +95,38 @@ let check ?(fs = []) (c : constraint_) =
   else
     let c' = uniqueify_binders c in
     let formula = Boolean.mk_not ctx (build_expr c') in
+    let universals =
+      List.fold_left
+        (fun e (_, _, _, f_cstr) ->
+          Option.fold ~none:e
+            ~some:(fun f_cstr ->
+              match f_cstr with
+              | Logic.C_Implication (x, b, p, _) ->
+                  let i = !quant_counter in
+                  let x' = x ^ "_quant_" ^ string_of_int i in
+                  quant_counter := i + 1;
+                  add_var x' b;
+                  let p' = Logic.substitute_pred x x' p in
+                  let pe = build_expr (Logic.C_Pred p') in
+                  let q =
+                    Quantifier.mk_forall_const ctx
+                      [ H.find m_var x' ]
+                      pe (Some 1) [] [] None None
+                  in
+
+                  Quantifier.expr_of_quantifier q :: e
+              | _ -> e)
+            f_cstr)
+        [] fs
+    in
+
     let solver = Solver.mk_solver ctx None in
-    match Solver.check solver [ formula ] with
-    | Solver.SATISFIABLE -> false
+    match Solver.check solver (universals @ [ formula ]) with
+    | Solver.SATISFIABLE ->
+        if dbg then
+          Solver.get_model solver
+          |> Option.fold ~none:() ~some:(fun m ->
+                 print_endline @@ Model.to_string m);
+        false
     | Solver.UNSATISFIABLE -> true
     | Solver.UNKNOWN -> failwith "Z3 returned unknown"

@@ -8,6 +8,7 @@ type ty =
 type ty_ctor = base_ty * (var * ty) list
 type data_ctor_decl = var * (var * ty) list * (var * Logic.pred) option
 type ty_ctor_decl = var * data_ctor_decl list
+type metric = Logic.pred list
 
 type expr =
   | E_Const of int
@@ -15,7 +16,7 @@ type expr =
   | E_Abs of var * expr
   | E_App of expr * var
   | E_Let of var * expr * expr
-  | E_RLet of var * expr * ty * expr
+  | E_RLet of var * expr * ty * metric * expr
   | E_Ann of expr * ty
   | E_True
   | E_False
