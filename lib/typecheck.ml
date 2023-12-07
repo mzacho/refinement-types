@@ -242,8 +242,12 @@ let rec sort_of (fs : L.uninterp_fun list) (g : logic_env) (p : L.pred) =
           if tc = tc' then Some (Logic.S_TyCtor tc) else None
       | Some s, Some s' -> if s = s' then Some s else None
       | _ -> None)
-  | L.P_Op (L.O_Add, p1, p2)
-  | L.P_Op (L.O_Sub, p1, p2)
+  | L.P_Op (L.O_Add, p1, p2) | L.P_Op (L.O_Sub, p1, p2) -> (
+      let s = sort_of fs g p1 in
+      let s' = sort_of fs g p2 in
+      match (s, s') with
+      | Some L.S_Int, Some L.S_Int -> Some L.S_Int
+      | _ -> None)
   | L.P_Op (L.O_Lt, p1, p2)
   | L.P_Op (L.O_Le, p1, p2)
   | L.P_Op (L.O_Gt, p1, p2)
@@ -329,7 +333,6 @@ let rec env_to_logic_env (g : env) : logic_env =
           in
           (x, b') :: env_to_logic_env g'
       | T_Arrow _ -> env_to_logic_env g')
-(* todo: add as uninterpreted fun? *)
 
 let metric_wf (fs : L.uninterp_fun list) (g : env) (m : A.metric) : bool =
   metric_wf' fs (env_to_logic_env g) m
@@ -349,8 +352,6 @@ let rec wfr (m1 : A.metric) (m2 : A.metric) : L.pred =
       L.P_Conj (op1, L.P_Disj (op2, L.P_Conj (op3, wfr ps ps')))
   | _, _ -> raise (Termination_error "expected metrics of same length in wfr")
 
-(* g contains actual parameters of fn already, so fresh(g) doesn't clash
-   (TODO: maybe change fresh to accept a prefix so we don't lose the var name?) *)
 let limit_function (fs : L.uninterp_fun list) (g : env) (m : A.metric)
     (ty : A.ty) : A.ty =
   let rec limit' (g : env) (m' : A.metric) (m : A.metric) (ty : A.ty) : A.ty =

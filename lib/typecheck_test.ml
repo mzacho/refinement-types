@@ -24,6 +24,16 @@ let%test "Fail subtyping: int :> bool)" =
   try Solver.check (Typecheck.sub t t')
   with Typecheck.Subtyping_error _ -> true
 
+(* Predicate sort *)
+let%test "Correct boolean sort" =
+  let t = Parse.string_to_type "int{x: ((x + 2) >= 0) & (~ (True = False))}" in
+  match t with
+  | T_Refined (_, _, p) -> (
+      match Typecheck.sort_of [] [ ("x", Logic.S_Int) ] p with
+      | Some Logic.S_Bool -> true
+      | _ -> false)
+  | _ -> true
+
 (* Type checking tests *)
 let%test "Integer identity function typechecks" =
   let e = Parse.string_to_expr "(fn x. x)" in
@@ -674,6 +684,24 @@ let%test "sumT: recursion on multiple parameters terminates" =
   let t = Parse.string_to_type "int{v: True}" in
   let c = Typecheck.check ~debug:false g e t in
   Solver.check c
+
+let%test "metric has to be decreasing" =
+  let e =
+    Parse.string_to_expr
+      "let rec f = (fn x. f x) : x:int{v:True} -> int{v:True} / 4 in 0"
+  in
+  let g = Typecheck.base_env in
+  let t = Parse.string_to_type "int{v: True}" in
+  let c = Typecheck.check ~debug:false g e t in
+  not @@ Solver.check c
+
+(*
+let%test "metric has to be of int sort" =
+  let e = Parse.string_to_expr "let rec f = (fn x. f x) : x:int{v:True} -> int{v:True} / (4 >= 3) in 0" in
+  let g = Typecheck.base_env in
+  let t = Parse.string_to_type "int{v: True}" in
+  let c = Typecheck.check ~debug:false g e t in
+  not @@ Solver.check c *)
 
 let%test "range terminates: metrics can be decreasing expressions" =
   let e =
