@@ -1,3 +1,6 @@
+help:
+	dune exec _build/default/bin/main.exe -- -help
+
 test:
 	dune runtest
 
@@ -16,3 +19,11 @@ coverage:
 	bisect-ppx-report summary
 	@echo "======================"
 	@echo "For summary see _coverage/index.html"
+
+# rebuild clean (without coverage instrumentation)
+build:
+	make clean
+	dune build
+
+demo-4:
+	dune exec _build/default/bin/main.exe -- -example 4 -debug
