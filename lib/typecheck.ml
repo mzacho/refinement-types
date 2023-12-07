@@ -88,7 +88,7 @@ exception Termination_error of string
    - Ok (denv), if denv doesn't violate the above, otherwise
    - Error (e), where e is an exception describing which of the above was violated.
 *)
-let check_data_env (denv : data_env) =
+let _check_data_env (denv : data_env) =
   let dctor_wellformed (denv : data_env) (dctor : A.var * A.ty)
       (dctors : (A.var * A.ty) list) =
     let dcname, _ = dctor in
