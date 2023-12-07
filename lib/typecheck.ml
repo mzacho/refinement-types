@@ -148,7 +148,10 @@ let rec sub (s : A.ty) (t : A.ty) : L.constraint_ =
       match t with
       | T_Refined (b', v2, p2) ->
           if not (b = b') then
-            raise (Subtyping_error "Refined types have different base types")
+            raise
+              (Subtyping_error
+                 ("Refined types have different base types: " ^ pp_type s
+                ^ " and " ^ pp_type t))
           else (v1, ty_to_sort b, p1) ==> L.C_Pred (L.substitute_pred v2 v1 p2)
       | T_Arrow _ -> raise (Subtyping_error "Expected refined type"))
   | T_Arrow (x1, s1, t1) -> (
@@ -348,13 +351,9 @@ let rec wfr (m1 : A.metric) (m2 : A.metric) : L.pred =
 
 (* g contains actual parameters of fn already, so fresh(g) doesn't clash
    (TODO: maybe change fresh to accept a prefix so we don't lose the var name?) *)
-let limit_function ?(debug = false) (fs : L.uninterp_fun list) (g : env)
-    (m : A.metric) (ty : A.ty) : A.ty =
+let limit_function (fs : L.uninterp_fun list) (g : env) (m : A.metric)
+    (ty : A.ty) : A.ty =
   let rec limit' (g : env) (m' : A.metric) (m : A.metric) (ty : A.ty) : A.ty =
-    if debug then (
-      Pp.dbg @@ Pp.pp_ty ty;
-      Pp.dbg @@ Pp.pp_metric m';
-      Pp.dbg @@ Pp.pp_metric m);
     match ty with
     | T_Arrow (x, (A.T_Refined (b, y, p) as s), t)
       when metric_wf fs ((x, s) >: g) m ->
@@ -368,8 +367,7 @@ let limit_function ?(debug = false) (fs : L.uninterp_fun list) (g : env)
         (* substitute x' for the binder of the argument in the result type *)
         let t_sub = substitute_type x x' t in
         (* return the limited arrow type *)
-        let r = A.T_Arrow (x', A.T_Refined (b, x', p'), t_sub) in
-        r
+        A.T_Arrow (x', A.T_Refined (b, x', p'), t_sub)
     | T_Arrow (x, s, t) ->
         let x' = fresh_var g in
         (* substitute x' for the binder of the argument in the metric *)
@@ -377,13 +375,11 @@ let limit_function ?(debug = false) (fs : L.uninterp_fun list) (g : env)
         (* substitute x' for the binder of the argument in the result type *)
         let t_sub = substitute_type x x' t in
         (* limit the result type by calling recursively *)
-        let s_sub = substitute_type x x' s in
         let g' = (x', s) >: g in
         let t' = limit' g' m' m_sub t_sub in
-
         (* substitute x' for the binder of the argument its type
            - not sure if this is correct, since substitute_type is capture avoiding? *)
-
+        let s_sub = substitute_type x x' s in
         (* return the limited arrow type *)
         A.T_Arrow (x', s_sub, t')
     | _ -> failwith "todo"
@@ -474,7 +470,7 @@ let check ?(fs = []) ?(debug = false) ?(denv = []) (g : env) (e : A.expr)
         else
           let t1', m' = rename_ty e1 t1 m in
           let ys, e1_body, t1_result = split_lambdas (e1, t1') in
-          let tlim = limit_function ~debug fs g m' t1' in
+          let tlim = limit_function fs g m' t1' in
           let g' = List.fold_right ( >: ) ys g in
           (* check body of e1 with limited f *)
           let c1 = check' ((f, tlim) >: g') e1_body t1_result in

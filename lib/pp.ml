@@ -5,6 +5,8 @@ open Logic
 
 let int i = PPrint.string @@ Printf.sprintf "%d" i
 let str s = PPrint.string s
+let nl = PPrint.hardline
+let nest = PPrint.nest 2
 let ( ^^ ) = PPrint.( ^^ )
 
 let pp_op (o : op) : PPrint.document =
@@ -24,8 +26,8 @@ let rec pp_pred (p : pred) : PPrint.document =
   | P_False -> str "False"
   | P_Int i -> int i
   | P_Op (op, p, p') -> pp_pred p ^^ pp_op op ^^ pp_pred p'
-  | P_Disj (p, p') -> pp_pred p ^^ str " ∨ " ^^ pp_pred p'
-  | P_Conj (p, p') -> pp_pred p ^^ str " ∧ " ^^ pp_pred p'
+  | P_Disj (p, p') -> str "(" ^^ pp_pred p ^^ str " ∨ " ^^ pp_pred p' ^^ str ")"
+  | P_Conj (p, p') -> str "(" ^^ pp_pred p ^^ str " ∧ " ^^ pp_pred p' ^^ str ")"
   | P_Neg p -> str "¬" ^^ pp_pred p
   | P_FunApp (f, args) ->
       str f ^^ str "(" ^^ PPrint.separate_map (str ", ") pp_pred args ^^ str ")"
@@ -36,10 +38,12 @@ let pp_sort (s : sort) : PPrint.document =
 let rec pp_constraint (c : constraint_) : PPrint.document =
   match c with
   | C_Pred p -> pp_pred p
-  | C_Conj (c1, c2) -> pp_constraint c1 ^^ str " ∧ " ^^ pp_constraint c2
+  | C_Conj (c1, c2) -> pp_constraint c1 ^^ str " ∧ " ^^ nl ^^ pp_constraint c2
   | C_Implication (v, s, p, c) ->
       str "(∀" ^^ str v ^^ str ":" ^^ pp_sort s ^^ str ". " ^^ pp_pred p
-      ^^ str " ⇒ " ^^ pp_constraint c ^^ str ")"
+      ^^ str " ⇒ " ^^ nl
+      ^^ nest (pp_constraint c)
+      ^^ str ")"
 
 let rec pp_ty (t : ty) : PPrint.document =
   match t with
