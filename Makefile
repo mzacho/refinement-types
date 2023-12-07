@@ -36,3 +36,6 @@ demo-length:
 
 demo-append:
 	dune exec _build/default/bin/main.exe -- -example append -debug
+
+demo-loop:
+	dune exec _build/default/bin/main.exe -- -example loop -debug
