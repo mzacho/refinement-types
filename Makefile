@@ -25,5 +25,8 @@ build:
 	make clean
 	dune build
 
-demo-4:
-	dune exec _build/default/bin/main.exe -- -example 4 -debug
+demo-42:
+	dune exec _build/default/bin/main.exe -- -example 42 -debug
+
+demo-length:
+	dune exec _build/default/bin/main.exe -- -example length -debug
