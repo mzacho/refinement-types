@@ -6,7 +6,7 @@ test:
 
 clean:
 	dune clean
-	rm -rf _coverage/
+	rm -rf _coverage/ *.coverage
 
 coverage:
 	make clean

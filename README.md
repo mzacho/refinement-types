@@ -1,15 +1,24 @@
 ## ATPLT 2023 - Refinement types
 
+### Quickstart
+
+Enter a nix-shell:
+
+```
+nix-shell
+```
+
+Print help:
+
+```
+make help
+```
+
 ### Setup
 Install the required libraries with opam:
 ```
 opam pin add -y -n .
 opam install --deps-only atplt2023
-```
-
-Or use the nix-config:
-```
-nix-shell
 ```
 
 ### Building and running

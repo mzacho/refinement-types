@@ -152,14 +152,16 @@ let usage_msg =
 =========================================
   HELP
 =========================================
-  Things you can do at the moment:
+  Things you can do:
 
-  - typecheck example program
+  - typecheck example programs: make demo-<TAB>
+
+  - compute test coverage: make coverage
 
 =========================================
   EXAMPLE
 
-  ./main.exe -example funapp -debug
+  ./main.exe -example 42 -debug
 
 =========================================
   The following commands are available:
