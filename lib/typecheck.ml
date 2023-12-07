@@ -63,9 +63,13 @@ let base_env =
         Parse.string_to_type "x:int{v:True}->y:int{v:True}->int{z:z=(x-y)}" )
      >: (( "lt",
            Parse.string_to_type
-             "x:int{v:True}->y:int{v:True}->bool{z:((~z) | (x < y)) & ((~(x < \
-              y)) | z)}" )
-        >: E_Empty))
+             "x:int{v:True}->y:int{v:True}->bool{z:(~z | (x < y)) & (~(x < y) \
+              | z)}" )
+        >: (( "eq",
+              Parse.string_to_type
+                "x:int{v:True}->y:int{v:True}->bool{z:(~z | (x = y)) & (~(x = \
+                 y) | z)}" )
+           >: E_Empty)))
 
 exception Synthesis_error of string
 exception Subtyping_error of string
@@ -204,14 +208,15 @@ let split_lambdas (e1, t1) : (A.var * A.ty) list * A.expr * A.ty =
   in
   split [] e1 t1
 
-let rec rename_ty e s =
+let rec rename_ty e s m =
   match (e, s) with
   | A.E_Abs (x, e), A.T_Arrow (y, s, t) ->
       let s' = substitute_type y x s in
       let t' = substitute_type y x t in
-      let t'' = rename_ty e t' in
-      A.T_Arrow (x, s', t'')
-  | _ -> s
+      let m' = List.map (L.substitute_pred y x) m in
+      let t'', m'' = rename_ty e t' m' in
+      (A.T_Arrow (x, s', t''), m'')
+  | _ -> (s, m)
 
 let rec add_vars (g : env) (ys : (A.var * A.ty) list) : env =
   match ys with [] -> g | (x, t) :: ys' -> (x, t) >: add_vars g ys'
@@ -266,8 +271,8 @@ and check_sort (fs : L.uninterp_fun list) (g : logic_env) (p : L.pred)
   match p with
   | L.P_Int _ -> s = L.S_Int
   (* check that both predicates are int-sorted *)
-  | L.P_Op (O_Add, p1, p2)
-  | L.P_Op (O_Sub, p1, p2)
+  | L.P_Op (O_Add, p1, p2) | L.P_Op (O_Sub, p1, p2) ->
+      s = L.S_Int && check_sort fs g p1 L.S_Int && check_sort fs g p2 L.S_Int
   | L.P_Op (O_Le, p1, p2)
   | L.P_Op (O_Ge, p1, p2)
   | L.P_Op (O_Gt, p1, p2)
@@ -283,7 +288,6 @@ and check_sort (fs : L.uninterp_fun list) (g : logic_env) (p : L.pred)
   | L.P_Var x -> (
       try
         let _, s' = List.find (fun (y, _) -> String.equal y x) g in
-        let _ = List.iter (fun (x, _s) -> print_endline x) g in
         s' = s
       with Not_found -> false)
   | L.P_FunApp (f, args) ->
@@ -291,9 +295,7 @@ and check_sort (fs : L.uninterp_fun list) (g : logic_env) (p : L.pred)
         List.find (fun (f', _, _, _) -> f = f') fs
       in
       out_sort = s
-      && List.for_all2
-           (fun p s -> check_sort fs g p s)
-           args arg_sorts (* TODO: lookup codomain of uninterpreted fun *)
+      && List.for_all2 (fun p s -> check_sort fs g p s) args arg_sorts
   | L.P_True | L.P_False -> s = L.S_Bool
   | L.P_Neg p -> s = L.S_Bool && sort_of fs g p = Some L.S_Bool
   | L.P_Conj (p1, p2) | L.P_Disj (p1, p2) ->
@@ -346,27 +348,21 @@ let rec wfr (m1 : A.metric) (m2 : A.metric) : L.pred =
 
 (* g contains actual parameters of fn already, so fresh(g) doesn't clash
    (TODO: maybe change fresh to accept a prefix so we don't lose the var name?) *)
-let limit_function (fs : L.uninterp_fun list) (g : env) (m : A.metric)
-    (ty : A.ty) : A.ty =
+let limit_function ?(debug = false) (fs : L.uninterp_fun list) (g : env)
+    (m : A.metric) (ty : A.ty) : A.ty =
   let rec limit' (g : env) (m' : A.metric) (m : A.metric) (ty : A.ty) : A.ty =
-    print_endline "LIMITING. m0:";
-    let _ = List.iter (fun p -> Pp.dbg @@ Pp.pp_pred p) m' in
-    print_endline "LIMITING. m:";
-    let _ = List.iter (fun p -> Pp.dbg @@ Pp.pp_pred p) m in
-    Pp.dbg @@ Pp.pp_ty ty;
+    if debug then (
+      Pp.dbg @@ Pp.pp_ty ty;
+      Pp.dbg @@ Pp.pp_metric m';
+      Pp.dbg @@ Pp.pp_metric m);
     match ty with
     | T_Arrow (x, (A.T_Refined (b, y, p) as s), t)
       when metric_wf fs ((x, s) >: g) m ->
-        print_string x;
-        print_endline "BOTTOM LIMIT";
         let x' = fresh_var g in
         (* substitute x' for the binder in the predicate *)
         let p_sub = L.substitute_pred x x' @@ L.substitute_pred y x p in
         (* substitute x' for the binder of the argument in the metric *)
         let m_sub = List.map (L.substitute_pred x x') m in
-        (* let _ = List.iter (fun p -> Pp.dbg @@ Pp.pp_pred p) m' in
-           let _ = List.iter (fun p -> Pp.dbg @@ Pp.pp_pred p) m in
-           let _ = List.iter (fun p -> Pp.dbg @@ Pp.pp_pred p) m_sub in *)
         (* form the new predicate that the argument must satisfy *)
         let p' = L.P_Conj (p_sub, wfr m' m_sub) in
         (* substitute x' for the binder of the argument in the result type *)
@@ -375,13 +371,9 @@ let limit_function (fs : L.uninterp_fun list) (g : env) (m : A.metric)
         let r = A.T_Arrow (x', A.T_Refined (b, x', p'), t_sub) in
         r
     | T_Arrow (x, s, t) ->
-        print_endline "ARROW CASE";
         let x' = fresh_var g in
         (* substitute x' for the binder of the argument in the metric *)
         let m_sub = List.map (L.substitute_pred x x') m in
-        let _ = List.iter (fun p -> Pp.dbg @@ Pp.pp_pred p) m' in
-        let _ = List.iter (fun p -> Pp.dbg @@ Pp.pp_pred p) m in
-        let _ = List.iter (fun p -> Pp.dbg @@ Pp.pp_pred p) m_sub in
         (* substitute x' for the binder of the argument in the result type *)
         let t_sub = substitute_type x x' t in
         (* limit the result type by calling recursively *)
@@ -394,11 +386,7 @@ let limit_function (fs : L.uninterp_fun list) (g : env) (m : A.metric)
 
         (* return the limited arrow type *)
         A.T_Arrow (x', s_sub, t')
-    | _ ->
-        print_endline "FAILURE. m:";
-        let _ = List.iter (fun p -> Pp.dbg @@ Pp.pp_pred p) m in
-        dbg @@ pp_ty ty;
-        failwith "todo"
+    | _ -> failwith "todo"
   in
   limit' g m m ty
 
@@ -484,14 +472,9 @@ let check ?(fs = []) ?(debug = false) ?(denv = []) (g : env) (e : A.expr)
                "Attempted to bind a variable under the same identifier as a \
                 data constructor (let-rec)")
         else
-          let t1' = (* rename_ty e1 t1*) t1 in
-
+          let t1', m' = rename_ty e1 t1 m in
           let ys, e1_body, t1_result = split_lambdas (e1, t1') in
-          let _ =
-            List.iter (fun (s, t) -> print_endline (s ^ ":" ^ Pp.pp_type t)) ys
-          in
-          let tlim = limit_function fs g m t1' in
-          Pp.dbg @@ Pp.pp_ty tlim;
+          let tlim = limit_function ~debug fs g m' t1' in
           let g' = List.fold_right ( >: ) ys g in
           (* check body of e1 with limited f *)
           let c1 = check' ((f, tlim) >: g') e1_body t1_result in

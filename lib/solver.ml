@@ -19,6 +19,7 @@ let check ?(dbg = false) ?(fs = []) (c : constraint_) =
   let m_sort : (var, Sort.sort) H.t = H.create 10 in
   (* m_fun keeps track of uninterpreted functions *)
   let m_fun : (var, FuncDecl.func_decl) H.t = H.create 10 in
+  let quant_counter = ref 0 in
   let op_to_z3_op (o : op) =
     match o with
     | O_Add -> fun e1 e2 -> Arithmetic.mk_add ctx [ e1; e2 ]
@@ -69,9 +70,7 @@ let check ?(dbg = false) ?(fs = []) (c : constraint_) =
       | P_True -> Boolean.mk_true ctx
       | P_False -> Boolean.mk_false ctx
       | P_Int i -> Arithmetic.Integer.mk_numeral_i ctx i
-      | P_Op (o, p1, p2) ->
-          Pp.dbg @@ Pp.pp_pred p;
-          (op_to_z3_op o) (b_exp_p p1) (b_exp_p p2)
+      | P_Op (o, p1, p2) -> (op_to_z3_op o) (b_exp_p p1) (b_exp_p p2)
       | P_Disj (p1, p2) -> Boolean.mk_or ctx [ b_exp_p p1; b_exp_p p2 ]
       | P_Conj (p1, p2) -> Boolean.mk_and ctx [ b_exp_p p1; b_exp_p p2 ]
       | P_Neg p' -> Boolean.mk_not ctx (b_exp_p p')
@@ -91,19 +90,6 @@ let check ?(dbg = false) ?(fs = []) (c : constraint_) =
     b_exp_c c
   in
   let _ = List.map add_fun fs in
-  (* let c_new =
-       List.fold_left
-         (fun c (_, _, _, f_cstr) ->
-           Option.fold ~none:c
-             ~some:(fun f_cstr ->
-               Pp.dbg @@ Pp.pp_constraint f_cstr;
-               match f_cstr with
-               | Logic.C_Implication (x, b, p, c') ->
-                   Logic.C_Implication (x, b, p, Logic.C_Conj (c', c))
-               | c' -> Logic.C_Conj (c, c'))
-             f_cstr)
-         c fs
-     in *)
   let fv = Logic.collect_fv_c c in
   if fv != [] then raise (Constraint_not_closed (String.concat "," fv))
   else
@@ -116,7 +102,9 @@ let check ?(dbg = false) ?(fs = []) (c : constraint_) =
             ~some:(fun f_cstr ->
               match f_cstr with
               | Logic.C_Implication (x, b, p, _) ->
-                  let x' = x ^ "_quant" in
+                  let i = !quant_counter in
+                  let x' = x ^ "_quant_" ^ string_of_int i in
+                  quant_counter := i + 1;
                   add_var x' b;
                   let p' = Logic.substitute_pred x x' p in
                   let pe = build_expr (Logic.C_Pred p') in

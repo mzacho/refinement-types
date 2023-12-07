@@ -4,7 +4,8 @@
 
 %token <int> NAT
 %token <string> VAR
-%token PLUS MINUS TIMES DIV AND OR NEG DOT
+%token NEG
+%token PLUS MINUS TIMES DIV AND OR DOT
 %token LPAREN RPAREN LBRACK RBRACK COLON COMMA RARROW
 %token FN LET REC IN E_TRUE E_FALSE IF THEN ELSE
 %token TYPE SWITCH RDBLARROW
@@ -13,7 +14,9 @@
 %token EOF
 %left OR         /* for associative tokens: precedence increases downwards */
 %left AND
-%left EQ NEQ GE GT LE LT
+%left EQ NEQ
+%left NEG
+%left GE GT LE LT
 %left PLUS MINUS
 %left TIMES DIV
 

@@ -337,8 +337,7 @@ let%test "Incorrect constructor pattern in switch expression" =
       (Typecheck.check ~denv:list_data_env Typecheck.base_env e t)
   with Typecheck.Switch_error _ -> true
 
-let%test _ =
-  print_endline "LIST TAIL LESS";
+let%test "tail of non-empty list has a length strictly less than the list" =
   let e =
     Parse.string_to_expr "(fn xs. switch xs {Nil => Nil | Cons(y, ys) => ys})"
   in
@@ -349,7 +348,6 @@ let%test _ =
   let c =
     Typecheck.check ~fs:[ len ] ~denv:list_data_env Typecheck.base_env e t
   in
-  Pp.dbg @@ Pp.pp_constraint c;
   Solver.check ~dbg:true ~fs:[ len ] c
 
 let%test "Typechecking switch expression on variable fails when alternatives \
@@ -471,7 +469,6 @@ let%test "Safe head negative" =
        (Typecheck.check ~denv:list_data_env Typecheck.base_env e t))
 
 let%test "length reflects len" =
-  print_endline "LEN REFLECTS LEN";
   let e =
     Parse.string_to_expr
       {|
@@ -516,17 +513,17 @@ let middle_sig = Printf.sprintf "acc:int{v: True} -> %s" inner_sig
 
 let outer_sig =
   Printf.sprintf
-    "f:x:int{v: True} -> acc:int{v: True} -> int{v: v = (x + acc)} -> %s"
+    "f:acc:int{v: True} -> x:int{v: True} -> int{v: v = (x + acc)} -> %s"
     middle_sig
 
 let sum_specialized_foldl_def =
   Printf.sprintf
     {|
-   let rec foldr =
+   let rec foldl =
    (fn f. (fn acc. (fn xs.
    switch xs {
    | Nil => acc
-   | Cons(hd, tl) => let res = (f hd) acc in ((foldr f) res) tl
+   | Cons(hd, tl) => let res = f hd acc in foldl f res tl
    }))) :%s / len(xs)
    |}
     outer_sig
@@ -550,18 +547,18 @@ let%test "fold left add" =
          {|
           %s
           in
-          foldr
+          let sum = (fn xs. let zero = 0 in foldl add zero xs): xs:list{v: True} -> int{v: v = listsum(xs)}
+          in
+          sum
           |}
          sum_specialized_foldl_def)
   in
-  let t = Parse.string_to_type outer_sig in
-  print_endline "FOLD";
+  let t = Parse.string_to_type "xs:list{v: True} -> int{v: v = listsum(xs)}" in
   let c =
     Typecheck.check ~fs:[ listsum; len ] ~denv:list_data_env' Typecheck.base_env
       e t
   in
-  Pp.dbg @@ Pp.pp_constraint c;
-  Solver.check ~dbg:true ~fs:[ listsum; len ] c
+  Solver.check ~fs:[ listsum; len ] c
 
 (* ------------------------ termination ------------------------------- *)
 
@@ -603,17 +600,41 @@ let%test "constant curried fun terminates" =
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: True}" in
   let c = Typecheck.check g e t in
+  Solver.check c
+
+let%test "constant curried fun terminates (inner metric)" =
+  let e =
+    Parse.string_to_expr
+      {|
+       let zero = 0 in let rec f =
+           (fn a. (fn b. 42))
+           : x:int{v: True} -> y:int{v: True} -> int{v: True} / y
+       in (f zero) zero
+       |}
+  in
+  let g = Typecheck.base_env in
+  let t = Parse.string_to_type "int{v: True}" in
+  let c = Typecheck.check g e t in
   (* let _ = Pp.dbg @@ Pp.pp_constraint c in *)
   Solver.check c
 
-(* let%test "Let rec exp w/ recursive def. and annotation checks" = *)
-(*   let e = *)
-(*     Parse.string_to_expr *)
-(*       "let rec x = x : int{x: x = 42} : int{x: x = 42} / 0 in x" *)
-(*   in *)
-(*   let g = Typecheck.base_env in *)
-(*   let t = Parse.string_to_type "int{v: v = 42}" in *)
-(*   Solver.check (Typecheck.check g e t) *)
+let%test "curried rec sub 1 until 0 terminates" =
+  let e =
+    Parse.string_to_expr
+      {|
+      let zero = 0 in let one = 1 in let rec f =
+             (fn x. (fn y. let b = (lt x) one in
+                       if b then 0 else
+                       let newx = (sub x) one in (f newx) one))
+         : x:int{v: v>=0} -> y:int{v: True} -> int{v: True} / x
+       in (f zero) zero
+     |}
+  in
+  let g = Typecheck.base_env in
+  let t = Parse.string_to_type "int{v: True}" in
+  let c = Typecheck.check g e t in
+  (* let _ = Pp.dbg @@ Pp.pp_constraint c in *)
+  Solver.check c
 
 let%test "sum of nats terminates" =
   let e =
@@ -626,7 +647,7 @@ let%test "sum of nats terminates" =
       \                 let y = (sub x) one in\n\
       \                 let z = sum y in\n\
       \                   (add z) one))\n\
-      \         : x:int{v:True} -> int{v:True} / x\n\
+      \         : x:int{v:True} -> int{v: True} / x\n\
       \       in\n\
       \       let a = 10 in sum a"
   in
@@ -636,7 +657,6 @@ let%test "sum of nats terminates" =
   Solver.check c
 
 let%test "sumT: recursion on multiple parameters terminates" =
-  print_endline "SUMT";
   let e =
     Parse.string_to_expr
       "let zero = 0 in let one = 1 in let ten = 10 in\n\
@@ -644,14 +664,174 @@ let%test "sumT: recursion on multiple parameters terminates" =
       \           (fn total.\n\
       \             (fn x. let y = (lt x) one in\n\
       \               if y then total else\n\
-      \                 let newx     = (sub x) one     in\n\
-      \                 let newtotal = (add total) one in\n\
+      \                 let newx     = (sub x) one in\n\
+      \                 let newtotal = (add total) x in\n\
       \                   (sumT newtotal) newx))\n\
-      \           : total:int{v: True} -> x:int{v: v >= 0} -> int{v: True} / x\n\
+      \           : total:int{v: 0 <= v} -> x:int{v: 0 <= v} -> int{v: 0 <= v} \
+       / x\n\
       \       in (sumT zero) ten"
   in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: True}" in
   let c = Typecheck.check ~debug:false g e t in
-  let _ = Pp.dbg @@ Pp.pp_constraint c in
   Solver.check c
+
+let%test "range terminates: metrics can be decreasing expressions" =
+  let e =
+    Parse.string_to_expr
+      {|
+      let one = 1 in let rec range =
+          (fn i.
+            (fn j. let b = (lt i) j in
+              if b
+              then
+                let newi = (add i) one in
+                let tl = (range newi) j in (Cons i) tl
+              else Nil))
+          : i:int{v: True} -> j:int{v: True} -> list{v: True} / j - i
+       in
+       let x = 12 in
+       let y = 42 in (range x) y
+     |}
+  in
+  let t = Parse.string_to_type "list{v: True}" in
+  let c =
+    Typecheck.check ~fs:[ len ] ~denv:list_data_env Typecheck.base_env e t
+  in
+  Solver.check ~fs:[ len ] c
+
+let%test "ackermann terminates: lexicographic metrics" =
+  let e =
+    Parse.string_to_expr
+      {|
+        let zero = 0 in let one = 1 in
+        let rec ack =
+        (fn m. (fn n.
+          let b = (eq m) zero in
+          if b then (add n) one
+          else let newm = (sub m) one in
+               let b = (eq n) zero in
+               if b then (ack newm) one
+               else let newn = (sub n) one in
+                    let ackres = (ack m) newn in
+                    (ack newm) ackres))
+        : m:int{v:v>=0} -> n:int{v:v>=0} -> int{v:v>=0} / m, n
+        in
+        let x = 42 in
+        let y = 1337 in (ack x) y
+        |}
+  in
+  let t = Parse.string_to_type "int{v: True}" in
+  let c = Typecheck.check ~debug:false Typecheck.base_env e t in
+  Solver.check c
+
+let%test "braid" =
+  let e =
+    Parse.string_to_expr
+      {|
+       let rec braid =
+       (fn xs. (fn ys.
+       switch xs {
+       | Nil => ys
+       | Cons(x, zs) => let tl = braid ys zs in Cons x tl
+       })) : xs:list{v: True} -> ys:list{v: True} -> list{v: True} / len(xs) + len(ys)
+       in
+       braid
+       |}
+  in
+  let t =
+    Parse.string_to_type "xs:list{v: True} -> ys:list{v: True} -> list{v: True}"
+  in
+  let c =
+    Typecheck.check ~fs:[ len ] ~denv:list_data_env Typecheck.base_env e t
+  in
+  Solver.check ~fs:[ len ] c
+
+let%test "Bad append (wrong implementation)" =
+  let e =
+    Parse.string_to_expr
+      {|
+       let rec append =
+       (fn xs. (fn ys.
+       switch xs {
+       | Nil => ys
+       | Cons(hd, tl) => let rest = append xs ys in Cons hd rest
+       })) : xs:list{v: True} -> ys:list{v: True} -> list{v: True} / len(xs)
+       in
+       append
+       |}
+  in
+  let t =
+    Parse.string_to_type "xs:list{v: True} -> ys:list{v: True} -> list{v: True}"
+  in
+  let c =
+    Typecheck.check ~fs:[ len ] ~denv:list_data_env Typecheck.base_env e t
+  in
+  not @@ Solver.check ~fs:[ len ] c
+
+let%test "Bad sum (wrong implementation)" =
+  let e =
+    Parse.string_to_expr
+      {|
+       let zero = 0 in
+       let one = 1 in
+       let rec sum =
+       (fn n.
+       let b = eq n zero in
+       if b then 0 else
+       let newn = sub n one in
+       let res = sum newn in
+       add n res) : n:int{v: True} -> int{v: True} / n in
+       0
+       |}
+  in
+  let g = Typecheck.base_env in
+  let t = Parse.string_to_type "int{v: True}" in
+  let c = Typecheck.check g e t in
+  not @@ Solver.check c
+
+let%test "Bad sumT (wrong termination metric)" =
+  let e =
+    Parse.string_to_expr
+      {|
+       let zero = 0 in let one = 1 in let ten = 10 in
+       let rec sumT =
+       (fn total. (fn x.
+       let y = (lt x) one in
+       if y then total else
+       let newx = (sub x) one in
+       let newtotal = (add total) x in
+       (sumT newtotal) newx))
+       : total:int{v: True} -> x:int{v: True} -> int{v: True} / total
+       in
+       sumT zero ten
+       |}
+  in
+  let g = Typecheck.base_env in
+  let t = Parse.string_to_type "int{v: True}" in
+  let c = Typecheck.check ~debug:false g e t in
+  not @@ Solver.check c
+
+let%test "Bad range (wrong implementation)" =
+  let e =
+    Parse.string_to_expr
+      {|
+      let one = 1 in let rec range =
+          (fn i.
+            (fn j. let b = eq i j in
+              if b
+              then
+                let newi = (add i) one in
+                let tl = (range newi) j in (Cons i) tl
+              else Nil))
+          : i:int{v: True} -> j:int{v: True} -> list{v: True} / j - i
+       in
+       let x = 12 in
+       let y = 42 in (range x) y
+     |}
+  in
+  let t = Parse.string_to_type "list{v: True}" in
+  let c =
+    Typecheck.check ~fs:[ len ] ~denv:list_data_env Typecheck.base_env e t
+  in
+  not @@ Solver.check ~fs:[ len ] c
