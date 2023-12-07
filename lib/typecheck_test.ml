@@ -705,6 +705,34 @@ let%test "range terminates: metrics can be decreasing expressions" =
   let c = Typecheck.check ~denv:list_data_env Typecheck.base_env e t in
   Solver.check ~fs:[ len ] c
 
+let%test "range terminates (negative): when changing the\n\
+         \ recursive call to range i+1 j+1 then range loops\n\
+         \ infinitely" =
+  let e =
+    Parse.string_to_expr
+      {|
+      let one = 1 in let rec range =
+          (fn i.
+            (fn j. let b = (lt i) j in
+              if b
+              then
+                let newi = (add i) one in
+                let newj = (add j) one in
+                let tl = (range newi) newj in (Cons i) tl
+              else Nil))
+          : i:int{v: True} -> j:int{v: True} -> list{v: True} / j - i
+       in
+       let x = 12 in
+       let y = 42 in (range x) y
+     |}
+  in
+  let t = Parse.string_to_type "list{v: True}" in
+  let c =
+    Typecheck.check ~denv:list_data_env Typecheck.base_env e t
+  in
+  not (Solver.check ~fs:[ len ] c)
+
+
 let%test "ackermann terminates: lexicographic metrics" =
   let e =
     Parse.string_to_expr
@@ -729,3 +757,30 @@ let%test "ackermann terminates: lexicographic metrics" =
   let t = Parse.string_to_type "int{v: True}" in
   let c = Typecheck.check ~debug:false Typecheck.base_env e t in
   Solver.check c
+
+let%test "ackermann terminates (negative): when changing\n\
+         \ the recursive call to (ack m) n then ackermann\n\
+         \ loops infinitely" =
+  let e =
+    Parse.string_to_expr
+      {|
+        let zero = 0 in let one = 1 in
+        let rec ack =
+        (fn m. (fn n.
+          let b = (eq m) zero in
+          if b then (add n) one
+          else let newm = (sub m) one in
+               let b = (eq n) zero in
+               if b then (ack newm) one
+               else let newn = (sub n) one in
+                    let ackres = (ack m) n in
+                    (ack newm) ackres))
+        : m:int{v:v>=0} -> n:int{v:v>=0} -> int{v:v>=0} / m, n
+        in
+        let x = 42 in
+        let y = 1337 in (ack x) y
+        |}
+  in
+  let t = Parse.string_to_type "int{v: True}" in
+  let c = Typecheck.check Typecheck.base_env e t in
+  not (Solver.check c)
