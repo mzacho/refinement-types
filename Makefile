@@ -29,7 +29,7 @@ demo-42:
 	dune exec _build/default/bin/main.exe -- -example 42 -debug
 
 demo-ackermann:
-	dune exec _build/default/bin/main.exe -- -example ack -debug
+	dune exec _build/default/bin/main.exe -- -example ackermann -debug
 
 demo-length:
 	dune exec _build/default/bin/main.exe -- -example length -debug
