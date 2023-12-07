@@ -63,8 +63,8 @@ let base_env =
         Parse.string_to_type "x:int{v:True}->y:int{v:True}->int{z:z=(x-y)}" )
      >: (( "lt",
            Parse.string_to_type
-             "x:int{v:True}->y:int{v:True}->bool{z:(~z | (x < y)) & (~(x < y) \
-              | z)}" )
+             "x:int{v:True}->y:int{v:True}->bool{z:((~z) | (x < y)) & ((~(x < \
+              y)) | z)}" )
         >: E_Empty))
 
 exception Synthesis_error of string
@@ -192,44 +192,123 @@ let close_data (denv : data_env) (c : L.constraint_) : L.constraint_ =
   in
   List.fold_left cls c denv
 
-let rec split_lambdas (e1, t1) : (A.var * A.ty) list * A.expr * A.ty =
-  match (e1, t1) with
-  | A.E_Abs (xa, e), A.T_Arrow (xt, t1, t2) ->
-      let ys', e', t' = split_lambdas (e, t2) in
-      (ys' @ [ (xa, substitute_type xt xa t1) ], e', t')
-  | E_Abs _, T_Refined _ ->
-      raise
-        (Invalid_abs_expression
-           "Expected function type for E_Abs in split_lambdas")
-  | _, _ -> ([], e1, t1)
+let split_lambdas (e1, t1) : (A.var * A.ty) list * A.expr * A.ty =
+  let rec split acc e t =
+    match (e, t) with
+    | A.E_Abs (_, e), A.T_Arrow (x, s, t) -> split ((x, s) :: acc) e t
+    | A.E_Abs _, _ ->
+        raise
+          (Invalid_abs_expression
+             "Expected function type for E_Abs in split_lambdas")
+    | eb, tb -> (List.rev acc, eb, tb)
+  in
+  split [] e1 t1
+
+let rec rename_ty e s =
+  match (e, s) with
+  | A.E_Abs (x, e), A.T_Arrow (y, s, t) ->
+      let s' = substitute_type y x s in
+      let t' = substitute_type y x t in
+      let t'' = rename_ty e t' in
+      A.T_Arrow (x, s', t'')
+  | _ -> s
 
 let rec add_vars (g : env) (ys : (A.var * A.ty) list) : env =
   match ys with [] -> g | (x, t) :: ys' -> (x, t) >: add_vars g ys'
 
-let rec check_sort (g : logic_env) (p : L.pred) (s : L.sort) : bool =
-  match s with
-  | L.S_Int -> (
-      match p with
-      | L.P_Int _ -> true
-      (* check that both predicates are int-sorted *)
-      | L.P_Op (_, p1, p2) -> check_sort g p1 s && check_sort g p2 s
-      | L.P_Var x -> (
-          try
-            let _, s' = List.find (fun (y, _) -> String.equal y x) g in
-            s' = L.S_Int
-          with Not_found -> true)
-      | P_FunApp (_, _) -> true (* TODO: lookup codomain of uninterpreted fun *)
-      | _ -> false)
-  | L.S_Bool -> failwith "unimplemented"
-  | L.S_TyCtor _ -> failwith "unimplemented"
+let rec sort_of (fs : L.uninterp_fun list) (g : logic_env) (p : L.pred) =
+  match p with
+  | L.P_Int _ -> Some L.S_Int
+  | L.P_True | L.P_False -> Some L.S_Bool
+  | L.P_Conj (p1, p2) | L.P_Disj (p1, p2) -> (
+      match (sort_of fs g p1, sort_of fs g p2) with
+      | Some L.S_Bool, Some L.S_Bool -> Some L.S_Bool
+      | _ -> None)
+  | L.P_Neg p ->
+      if sort_of fs g p |> ( = ) (Some L.S_Bool) then Some L.S_Bool else None
+  | L.P_Op (L.O_Eq, p1, p2) -> (
+      let s = sort_of fs g p1 in
+      let s' = sort_of fs g p2 in
+      match (s, s') with
+      | Some (L.S_TyCtor tc), Some (L.S_TyCtor tc') ->
+          if tc = tc' then Some (Logic.S_TyCtor tc) else None
+      | Some s, Some s' -> if s = s' then Some s else None
+      | _ -> None)
+  | L.P_Op (L.O_Add, p1, p2)
+  | L.P_Op (L.O_Sub, p1, p2)
+  | L.P_Op (L.O_Lt, p1, p2)
+  | L.P_Op (L.O_Le, p1, p2)
+  | L.P_Op (L.O_Gt, p1, p2)
+  | L.P_Op (L.O_Ge, p1, p2) -> (
+      let s = sort_of fs g p1 in
+      let s' = sort_of fs g p2 in
+      match (s, s') with
+      | Some L.S_Int, Some L.S_Int -> Some L.S_Bool
+      | _ -> None)
+  | L.P_Var v -> List.assoc_opt v g
+  | L.P_FunApp (f, args) ->
+      let _, arg_sorts, out_sort, _ =
+        List.find (fun (f', _, _, _) -> f = f') fs
+      in
+      if
+        List.for_all2
+          (fun p s ->
+            match (sort_of fs g p, s) with
+            | Some (L.S_TyCtor tc), L.S_TyCtor tc' -> tc = tc'
+            | Some s, s' -> s = s'
+            | _ -> false)
+          args arg_sorts
+      then Some out_sort
+      else None
 
-let rec metric_wf' (g : logic_env) (m : A.metric) : bool =
+and check_sort (fs : L.uninterp_fun list) (g : logic_env) (p : L.pred)
+    (s : L.sort) : bool =
+  match p with
+  | L.P_Int _ -> s = L.S_Int
+  (* check that both predicates are int-sorted *)
+  | L.P_Op (O_Add, p1, p2)
+  | L.P_Op (O_Sub, p1, p2)
+  | L.P_Op (O_Le, p1, p2)
+  | L.P_Op (O_Ge, p1, p2)
+  | L.P_Op (O_Gt, p1, p2)
+  | L.P_Op (O_Lt, p1, p2) ->
+      s = L.S_Bool && check_sort fs g p1 L.S_Int && check_sort fs g p2 L.S_Int
+  | L.P_Op (O_Eq, p1, p2) -> (
+      s = L.S_Bool
+      &&
+      match (sort_of fs g p1, sort_of fs g p2) with
+      | Some (L.S_TyCtor tc), Some (L.S_TyCtor tc') -> tc = tc'
+      | Some s1, Some s2 -> s1 = s2
+      | _ -> false)
+  | L.P_Var x -> (
+      try
+        let _, s' = List.find (fun (y, _) -> String.equal y x) g in
+        let _ = List.iter (fun (x, _s) -> print_endline x) g in
+        s' = s
+      with Not_found -> false)
+  | L.P_FunApp (f, args) ->
+      let _, arg_sorts, out_sort, _ =
+        List.find (fun (f', _, _, _) -> f = f') fs
+      in
+      out_sort = s
+      && List.for_all2
+           (fun p s -> check_sort fs g p s)
+           args arg_sorts (* TODO: lookup codomain of uninterpreted fun *)
+  | L.P_True | L.P_False -> s = L.S_Bool
+  | L.P_Neg p -> s = L.S_Bool && sort_of fs g p = Some L.S_Bool
+  | L.P_Conj (p1, p2) | L.P_Disj (p1, p2) ->
+      s = L.S_Bool
+      && sort_of fs g p1 = Some L.S_Bool
+      && sort_of fs g p2 = Some L.S_Bool
+
+let rec metric_wf' (fs : L.uninterp_fun list) (g : logic_env) (m : A.metric) :
+    bool =
   match m with
   | [] -> true
   | p :: m' ->
       (* check that p is int sorted *)
-      let b = check_sort g p L.S_Int in
-      b && metric_wf' g m'
+      let b = check_sort fs g p L.S_Int in
+      b && metric_wf' fs g m'
 
 let rec env_to_logic_env (g : env) : logic_env =
   match g with
@@ -247,8 +326,8 @@ let rec env_to_logic_env (g : env) : logic_env =
       | T_Arrow _ -> env_to_logic_env g')
 (* todo: add as uninterpreted fun? *)
 
-let metric_wf (g : env) (m : A.metric) : bool =
-  metric_wf' (env_to_logic_env g) m
+let metric_wf (fs : L.uninterp_fun list) (g : env) (m : A.metric) : bool =
+  metric_wf' fs (env_to_logic_env g) m
 
 let rec wfr (m1 : A.metric) (m2 : A.metric) : L.pred =
   match (m1, m2) with
@@ -267,42 +346,57 @@ let rec wfr (m1 : A.metric) (m2 : A.metric) : L.pred =
 
 (* g contains actual parameters of fn already, so fresh(g) doesn't clash
    (TODO: maybe change fresh to accept a prefix so we don't lose the var name?) *)
-let limit_function (g : env) (m : A.metric) (ty : A.ty) : A.ty =
+let limit_function (fs : L.uninterp_fun list) (g : env) (m : A.metric)
+    (ty : A.ty) : A.ty =
   let rec limit' (g : env) (m' : A.metric) (m : A.metric) (ty : A.ty) : A.ty =
+    print_endline "LIMITING. m0:";
+    let _ = List.iter (fun p -> Pp.dbg @@ Pp.pp_pred p) m' in
+    print_endline "LIMITING. m:";
+    let _ = List.iter (fun p -> Pp.dbg @@ Pp.pp_pred p) m in
+    Pp.dbg @@ Pp.pp_ty ty;
     match ty with
-    | T_Arrow (x, s, t) when metric_wf ((x, s) >: g) m -> (
-        match s with
-        | A.T_Refined (b, y, p) ->
-            let x' = fresh_var g in
-            (* substitute x' for the binder in the predicate *)
-            let p_sub = L.substitute_pred x x' @@ L.substitute_pred y x p in
-            (* substitute x' for the binder of the argument in the metric *)
-            let m_sub = List.map (L.substitute_pred x x') m in
-            (* form the new predicate that the argument must satisfy *)
-            let p' = L.P_Conj (p_sub, wfr m' m_sub) in
-            (* substitute x' for the binder of the argument in the result type *)
-            let t_sub = substitute_type x x' t in
-            (* return the limited arrow type *)
-            A.T_Arrow (x', A.T_Refined (b, x', p'), t_sub)
-        | A.T_Arrow (_, _, _) ->
-            raise
-              (Termination_error
-                 "expected function argument to be a refined base type"))
+    | T_Arrow (x, (A.T_Refined (b, y, p) as s), t)
+      when metric_wf fs ((x, s) >: g) m ->
+        print_string x;
+        print_endline "BOTTOM LIMIT";
+        let x' = fresh_var g in
+        (* substitute x' for the binder in the predicate *)
+        let p_sub = L.substitute_pred x x' @@ L.substitute_pred y x p in
+        (* substitute x' for the binder of the argument in the metric *)
+        let m_sub = List.map (L.substitute_pred x x') m in
+        (* let _ = List.iter (fun p -> Pp.dbg @@ Pp.pp_pred p) m' in
+           let _ = List.iter (fun p -> Pp.dbg @@ Pp.pp_pred p) m in
+           let _ = List.iter (fun p -> Pp.dbg @@ Pp.pp_pred p) m_sub in *)
+        (* form the new predicate that the argument must satisfy *)
+        let p' = L.P_Conj (p_sub, wfr m' m_sub) in
+        (* substitute x' for the binder of the argument in the result type *)
+        let t_sub = substitute_type x x' t in
+        (* return the limited arrow type *)
+        let r = A.T_Arrow (x', A.T_Refined (b, x', p'), t_sub) in
+        r
     | T_Arrow (x, s, t) ->
-        let g' = (x, s) >: g in
+        print_endline "ARROW CASE";
         let x' = fresh_var g in
         (* substitute x' for the binder of the argument in the metric *)
         let m_sub = List.map (L.substitute_pred x x') m in
+        let _ = List.iter (fun p -> Pp.dbg @@ Pp.pp_pred p) m' in
+        let _ = List.iter (fun p -> Pp.dbg @@ Pp.pp_pred p) m in
+        let _ = List.iter (fun p -> Pp.dbg @@ Pp.pp_pred p) m_sub in
         (* substitute x' for the binder of the argument in the result type *)
         let t_sub = substitute_type x x' t in
         (* limit the result type by calling recursively *)
+        let s_sub = substitute_type x x' s in
+        let g' = (x', s) >: g in
         let t' = limit' g' m' m_sub t_sub in
+
         (* substitute x' for the binder of the argument its type
            - not sure if this is correct, since substitute_type is capture avoiding? *)
-        let s_sub = substitute_type x x' s in
+
         (* return the limited arrow type *)
         A.T_Arrow (x', s_sub, t')
     | _ ->
+        print_endline "FAILURE. m:";
+        let _ = List.iter (fun p -> Pp.dbg @@ Pp.pp_pred p) m in
         dbg @@ pp_ty ty;
         failwith "todo"
   in
@@ -355,7 +449,8 @@ let switch_alternatives_exhaustive (dctors : (A.var * A.ty) list)
   List.for_all alt_matched_in_dctors alts
   && List.for_all dctor_matched_in_alts dctors
 
-let check ?(debug = false) ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
+let check ?(fs = []) ?(debug = false) ?(denv = []) (g : env) (e : A.expr)
+    (ty : A.ty) : L.constraint_ =
   let rec check_alt (g : env) (y : A.var) (A.Alt (dcname, zs, e) : A.alt)
       (ty : A.ty) : L.constraint_ =
     let s =
@@ -389,14 +484,19 @@ let check ?(debug = false) ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.c
                "Attempted to bind a variable under the same identifier as a \
                 data constructor (let-rec)")
         else
-          let ys, e1_body, t1_result = split_lambdas (e1, t1) in
-          let g' = add_vars g ys in
-          (* check body of e1 with limited f *)
-          let c1 =
-            check' ((f, limit_function g' m t1) >: g') e1_body t1_result
+          let t1' = (* rename_ty e1 t1*) t1 in
+
+          let ys, e1_body, t1_result = split_lambdas (e1, t1') in
+          let _ =
+            List.iter (fun (s, t) -> print_endline (s ^ ":" ^ Pp.pp_type t)) ys
           in
+          let tlim = limit_function fs g m t1' in
+          Pp.dbg @@ Pp.pp_ty tlim;
+          let g' = List.fold_right ( >: ) ys g in
+          (* check body of e1 with limited f *)
+          let c1 = check' ((f, tlim) >: g') e1_body t1_result in
           (* check remaining e2 with non-limited f *)
-          let c2 = check' ((f, t1) >: g') e2 ty in
+          let c2 = check' ((f, t1') >: g') e2 ty in
           L.C_Conj (implications ys c1, c2)
     | E_Abs (x, e) -> (
         match ty with
@@ -462,7 +562,6 @@ let check ?(debug = false) ?(denv = []) (g : env) (e : A.expr) (ty : A.ty) : L.c
     | _ ->
         raise
           (Synthesis_error ("Could not synthesize expression: " ^ pp_expr e))
-
   and check' (g : env) (e : A.expr) (ty : A.ty) : L.constraint_ =
     let _ =
       if debug then (

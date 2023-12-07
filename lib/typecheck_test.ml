@@ -218,7 +218,7 @@ let%test "Typechecking under a data environment with constructors (of \
   with Typecheck.Data_env_illformed_error _ -> true
 
 let rgb_sort = Logic.S_TyCtor "rgb"
-let isgreen : Logic.uninterp_fun = ("isgreen", [ rgb_sort ], Logic.S_Bool)
+let isgreen : Logic.uninterp_fun = ("isgreen", [ rgb_sort ], Logic.S_Bool, None)
 
 let rgb_data_env =
   let tc =
@@ -293,15 +293,24 @@ let%test "Typechecking switch expression against non-existent constructor fails"
       (Typecheck.check ~denv:rgb_data_env Typecheck.E_Empty e t)
   with Typecheck.Switch_error _ -> true
 
+open Logic
+
 let list_sort = Logic.S_TyCtor "list"
-let len : Logic.uninterp_fun = ("len", [ list_sort ], Logic.S_Int)
+
+let len : Logic.uninterp_fun =
+  ( "len",
+    [ list_sort ],
+    S_Int,
+    Some
+      (("l", list_sort, P_Op (O_Le, P_Int 0, P_FunApp ("len", [ P_Var "l" ])))
+      ==> C_Pred P_True) )
 
 let list_tc =
   Parse.string_to_ty_ctor
     {|
  type list =
  | Nil => {v: len(v) = 0 }
- | Cons(x:int{v: True}, xs:list{v: len(v) >= 0}) => {v: len(v) = 1 + len(xs)}.
+ | Cons(x:int{v: True}, xs:list{v: True}) => {v: len(v) = 1 + len(xs)}.
        |}
 
 let doublelist_sort = Logic.S_TyCtor "doublelist"
@@ -314,7 +323,8 @@ let doublelist_tc =
  | DCons(x:int{v: True}, y:int{v: True}, xs:doublelist{v: True}).
        |}
 
-let list_data_env = Typecheck.build_data_env [ list_tc; doublelist_tc ]
+let list_data_env = Typecheck.build_data_env [ list_tc ]
+let list_data_env' = Typecheck.build_data_env [ list_tc; doublelist_tc ]
 
 let%test "Incorrect constructor pattern in switch expression" =
   let e =
@@ -327,6 +337,21 @@ let%test "Incorrect constructor pattern in switch expression" =
       (Typecheck.check ~denv:list_data_env Typecheck.base_env e t)
   with Typecheck.Switch_error _ -> true
 
+let%test _ =
+  print_endline "LIST TAIL LESS";
+  let e =
+    Parse.string_to_expr "(fn xs. switch xs {Nil => Nil | Cons(y, ys) => ys})"
+  in
+  let t =
+    Parse.string_to_type
+      "xs:list{v: len(v) > 0} -> list{v: len(v) >= 0 & len(v) < len(xs)}"
+  in
+  let c =
+    Typecheck.check ~fs:[ len ] ~denv:list_data_env Typecheck.base_env e t
+  in
+  Pp.dbg @@ Pp.pp_constraint c;
+  Solver.check ~dbg:true ~fs:[ len ] c
+
 let%test "Typechecking switch expression on variable fails when alternatives \
           are not constructors of the variable's type" =
   let e =
@@ -336,7 +361,7 @@ let%test "Typechecking switch expression on variable fails when alternatives \
   let t = Parse.string_to_type "bool{b: True}" in
   try
     Solver.check ~fs:[ len ]
-      (Typecheck.check ~denv:list_data_env Typecheck.base_env e t)
+      (Typecheck.check ~denv:list_data_env' Typecheck.base_env e t)
   with Typecheck.Switch_error _ -> true
 
 let%test "Typechecking let expression that binds a variable with the same name \
@@ -446,6 +471,7 @@ let%test "Safe head negative" =
        (Typecheck.check ~denv:list_data_env Typecheck.base_env e t))
 
 let%test "length reflects len" =
+  print_endline "LEN REFLECTS LEN";
   let e =
     Parse.string_to_expr
       {|
@@ -460,7 +486,7 @@ let%test "length reflects len" =
   in
   let t = Parse.string_to_type "xs:list{v: True} -> int{v: v = len(xs)}" in
   Solver.check ~fs:[ len ]
-    (Typecheck.check ~denv:list_data_env Typecheck.base_env e t)
+    (Typecheck.check ~fs:[ len ] ~denv:list_data_env Typecheck.base_env e t)
 
 let%test "append reflects len" =
   let e =
@@ -479,7 +505,9 @@ let%test "append reflects len" =
       |}
   in
   let t = Parse.string_to_type "bool{v: True}" in
-  let c = Typecheck.check ~denv:list_data_env Typecheck.base_env e t in
+  let c =
+    Typecheck.check ~fs:[ len ] ~denv:list_data_env Typecheck.base_env e t
+  in
   (* dbg @@ pp_constraint c; *)
   Solver.check ~fs:[ len ] c
 
@@ -488,29 +516,29 @@ let middle_sig = Printf.sprintf "acc:int{v: True} -> %s" inner_sig
 
 let outer_sig =
   Printf.sprintf
-    "f:acc:int{v: True} -> x:int{v: True} -> int{v: v = (acc + x)} -> %s"
+    "f:x:int{v: True} -> acc:int{v: True} -> int{v: v = (x + acc)} -> %s"
     middle_sig
 
 let sum_specialized_foldl_def =
   Printf.sprintf
     {|
-   let rec foldl =
+   let rec foldr =
    (fn f. (fn acc. (fn xs.
    switch xs {
    | Nil => acc
-   | Cons(hd, tl) => let res = f acc hd in foldl f res tl
-   }):%s):%s):%s / len(xs)
+   | Cons(hd, tl) => let res = (f hd) acc in ((foldr f) res) tl
+   }))) :%s / len(xs)
    |}
-    inner_sig middle_sig outer_sig
+    outer_sig
 
-let listsum = ("listsum", [ list_sort ], Logic.S_Int)
+let listsum = ("listsum", [ list_sort ], Logic.S_Int, None)
 
 let list_tc' =
   Parse.string_to_ty_ctor
     {|
      type list =
-     | Nil => {v: listsum(v) = 0}
-     | Cons(x:int{v: True}, xs:list{v: True}) => {v: listsum(v) = (x + listsum(xs))}.
+     | Nil => {v: (len(v) = 0) & (listsum(v) = 0)}
+     | Cons(x:int{v: True}, xs:list{v: True}) => {v: (listsum(v) = (x + listsum(xs))) & (len(v) = (1 + len(xs)))}.
      |}
 
 let list_data_env' = Typecheck.build_data_env [ list_tc' ]
@@ -522,14 +550,18 @@ let%test "fold left add" =
          {|
           %s
           in
-          let sum = (fn xs. let zero = 0 in foldl add zero xs) : xs:list{v: True} -> int{v: v = listsum(xs)}
-          in sum
+          foldr
           |}
          sum_specialized_foldl_def)
   in
-  let t = Parse.string_to_type "xs:list{v: True} -> int{v: v = listsum(xs)}" in
-  let c = Typecheck.check ~denv:list_data_env' Typecheck.base_env e t in
-  Solver.check ~fs:[ listsum ] c
+  let t = Parse.string_to_type outer_sig in
+  print_endline "FOLD";
+  let c =
+    Typecheck.check ~fs:[ listsum; len ] ~denv:list_data_env' Typecheck.base_env
+      e t
+  in
+  Pp.dbg @@ Pp.pp_constraint c;
+  Solver.check ~dbg:true ~fs:[ listsum; len ] c
 
 (* ------------------------ termination ------------------------------- *)
 
@@ -537,7 +569,7 @@ let%test "constant fun terminates" =
   let e =
     Parse.string_to_expr
       "let zero = 0 in let rec f = (fn x. 42)\n\
-      \   : acc:int{v: True} -> int{v: True} / x\n\
+      \   : acc:int{v: True} -> int{v: True} / acc\n\
       \  in f zero"
   in
   let g = Typecheck.base_env in
@@ -548,25 +580,24 @@ let%test "constant fun terminates" =
 let%test "rec sub one until 0 terminates" =
   let e =
     Parse.string_to_expr
-      "let zero = 0 in let one = 1 in let rec f =
-          (fn x. let b = (lt x) one in
-                 if b then 0 else
-                 let newx = (sub x) one in f newx)
-         : x:int{v: v>=0} -> int{v: True} / x
-       in
-         let ten = 10 in f ten"
+      "let zero = 0 in let one = 1 in let rec f =\n\
+      \          (fn x. let b = (lt x) one in\n\
+      \                 if b then 0 else\n\
+      \                 let newx = (sub x) one in f newx)\n\
+      \         : x:int{v: v>=0} -> int{v: True} / x\n\
+      \       in\n\
+      \         let ten = 10 in f ten"
   in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: True}" in
   let c = Typecheck.check ~debug:false g e t in
   Solver.check c
 
-
 let%test "constant curried fun terminates" =
   let e =
     Parse.string_to_expr
       "let zero = 0 in let rec f = (fn a. (fn b. 42))\n\
-      \   : x:int{v: True} -> y:int{v: True} -> int{v: True} / t\n\
+      \   : x:int{v: True} -> y:int{v: True} -> int{v: True} / x\n\
       \  in (f zero) zero"
   in
   let g = Typecheck.base_env in
@@ -605,21 +636,22 @@ let%test "sum of nats terminates" =
   Solver.check c
 
 let%test "sumT: recursion on multiple parameters terminates" =
+  print_endline "SUMT";
   let e =
     Parse.string_to_expr
       "let zero = 0 in let one = 1 in let ten = 10 in\n\
       \         let rec sumT =\n\
       \           (fn total.\n\
       \             (fn x. let y = (lt x) one in\n\
-      \               if y then 0 else\n\
-      \                 let newtotal = (add total) one in\n\
+      \               if y then total else\n\
       \                 let newx     = (sub x) one     in\n\
+      \                 let newtotal = (add total) one in\n\
       \                   (sumT newtotal) newx))\n\
-      \           : acc:int{v: True} -> x:int{v: True} -> int{v: True} / x\n\
+      \           : total:int{v: True} -> x:int{v: v >= 0} -> int{v: True} / x\n\
       \       in (sumT zero) ten"
   in
   let g = Typecheck.base_env in
   let t = Parse.string_to_type "int{v: True}" in
   let c = Typecheck.check ~debug:false g e t in
-  (* let _ = Pp.dbg @@ Pp.pp_constraint c in *)
+  let _ = Pp.dbg @@ Pp.pp_constraint c in
   Solver.check c

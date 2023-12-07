@@ -11,7 +11,7 @@ exception Constraint_not_closed of string
   3. Now c = forall x0, x1, ..., xn . p => c'
   4. It suffices to check that there are no satisfying assignments of ~ (p => c')
   NOTE: Assume that c is closed under Γ, well-formed/ well-sorted, with respect to logical predicates *)
-let check ?(fs = []) (c : constraint_) =
+let check ?(dbg = false) ?(fs = []) (c : constraint_) =
   let ctx = mk_context [] in
   (* m_var keeps track of mapping between (our) variables and z3 variables *)
   let m_var : (var, Expr.expr) H.t = H.create 10 in
@@ -56,7 +56,7 @@ let check ?(fs = []) (c : constraint_) =
             H.add m_var v (Expr.mk_const_s ctx v (H.find m_sort tc)))
     | _ -> ()
   in
-  let add_fun ((f, params, ret) : uninterp_fun) =
+  let add_fun ((f, params, ret, _) : uninterp_fun) =
     let param_sorts = List.map translate_sort params in
     let ret_sort = translate_sort ret in
     let fdecl = FuncDecl.mk_fresh_func_decl ctx f param_sorts ret_sort in
@@ -69,7 +69,9 @@ let check ?(fs = []) (c : constraint_) =
       | P_True -> Boolean.mk_true ctx
       | P_False -> Boolean.mk_false ctx
       | P_Int i -> Arithmetic.Integer.mk_numeral_i ctx i
-      | P_Op (o, p1, p2) -> (op_to_z3_op o) (b_exp_p p1) (b_exp_p p2)
+      | P_Op (o, p1, p2) ->
+          Pp.dbg @@ Pp.pp_pred p;
+          (op_to_z3_op o) (b_exp_p p1) (b_exp_p p2)
       | P_Disj (p1, p2) -> Boolean.mk_or ctx [ b_exp_p p1; b_exp_p p2 ]
       | P_Conj (p1, p2) -> Boolean.mk_and ctx [ b_exp_p p1; b_exp_p p2 ]
       | P_Neg p' -> Boolean.mk_not ctx (b_exp_p p')
@@ -89,13 +91,54 @@ let check ?(fs = []) (c : constraint_) =
     b_exp_c c
   in
   let _ = List.map add_fun fs in
+  (* let c_new =
+       List.fold_left
+         (fun c (_, _, _, f_cstr) ->
+           Option.fold ~none:c
+             ~some:(fun f_cstr ->
+               Pp.dbg @@ Pp.pp_constraint f_cstr;
+               match f_cstr with
+               | Logic.C_Implication (x, b, p, c') ->
+                   Logic.C_Implication (x, b, p, Logic.C_Conj (c', c))
+               | c' -> Logic.C_Conj (c, c'))
+             f_cstr)
+         c fs
+     in *)
   let fv = Logic.collect_fv_c c in
   if fv != [] then raise (Constraint_not_closed (String.concat "," fv))
   else
     let c' = uniqueify_binders c in
     let formula = Boolean.mk_not ctx (build_expr c') in
+    let universals =
+      List.fold_left
+        (fun e (_, _, _, f_cstr) ->
+          Option.fold ~none:e
+            ~some:(fun f_cstr ->
+              match f_cstr with
+              | Logic.C_Implication (x, b, p, _) ->
+                  let x' = x ^ "_quant" in
+                  add_var x' b;
+                  let p' = Logic.substitute_pred x x' p in
+                  let pe = build_expr (Logic.C_Pred p') in
+                  let q =
+                    Quantifier.mk_forall_const ctx
+                      [ H.find m_var x' ]
+                      pe (Some 1) [] [] None None
+                  in
+
+                  Quantifier.expr_of_quantifier q :: e
+              | _ -> e)
+            f_cstr)
+        [] fs
+    in
+
     let solver = Solver.mk_solver ctx None in
-    match Solver.check solver [ formula ] with
-    | Solver.SATISFIABLE -> false
+    match Solver.check solver (universals @ [ formula ]) with
+    | Solver.SATISFIABLE ->
+        if dbg then
+          Solver.get_model solver
+          |> Option.fold ~none:() ~some:(fun m ->
+                 print_endline @@ Model.to_string m);
+        false
     | Solver.UNSATISFIABLE -> true
     | Solver.UNKNOWN -> failwith "Z3 returned unknown"
