@@ -10,6 +10,32 @@ let ex_42_fs = []
 let ex_42_denv = []
 let ex_42_gamma = M.Typecheck.E_Empty
 
+(****** ACKERMANN *******)
+let ack_expr =
+  M.Parse.string_to_expr
+    {|
+        let zero = 0 in let one = 1 in
+        let rec ack =
+        (fn m. (fn n.
+          let b = (eq m) zero in
+          if b then (add n) one
+          else let newm = (sub m) one in
+               let b = (eq n) zero in
+               if b then (ack newm) one
+               else let newn = (sub n) one in
+                    let ackres = (ack m) newn in
+                    (ack newm) ackres))
+        : m:int{v:v>=0} -> n:int{v:v>=0} -> int{v:v>=0} / m, n
+        in
+        let x = 42 in
+        let y = 1337 in (ack x) y
+    |}
+
+let ack_type = M.Parse.string_to_type "int{v: v>=0}"
+let ack_fs = []
+let ack_denv = []
+let ack_gamma = M.Typecheck.base_env
+
 (****** LENGTH REFLECT LEN *******)
 let list_sort = S_TyCtor "list"
 
@@ -86,6 +112,8 @@ let set_program s =
   match s with
   | "42" ->
       program := Some (ex_42_expr, ex_42_type, ex_42_fs, ex_42_denv, ex_42_gamma)
+  | "ackermann" ->
+      program := Some (ack_expr, ack_type, ack_fs, ack_denv, ack_gamma)
   | "length" ->
       program :=
         Some (length_expr, length_type, length_fs, length_denv, length_gamma)
