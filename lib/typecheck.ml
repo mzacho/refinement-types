@@ -88,37 +88,6 @@ exception Termination_error of string
    - Ok (denv), if denv doesn't violate the above, otherwise
    - Error (e), where e is an exception describing which of the above was violated.
 *)
-let _check_data_env (denv : data_env) =
-  let dctor_wellformed (denv : data_env) (dctor : A.var * A.ty)
-      (dctors : (A.var * A.ty) list) =
-    let dcname, _ = dctor in
-    if
-      (not (List.for_all (fun (dcname', _) -> dcname <> dcname') dctors))
-      || lookup_dctor_ty denv dcname <> None
-    then R.error (Data_env_illformed_error "Data constructor name clash")
-    else R.ok (dctor :: dctors)
-  in
-  let tctor_wellformed (tctor : A.var * (A.base_ty * (A.var * A.ty) list)) denv
-      =
-    let tcname, (_, dctors) = tctor in
-    if lookup_tctor denv tcname <> None then
-      R.error (Data_env_illformed_error "Type constructor name clash")
-    else
-      let r =
-        List.fold_left (r_bind (dctor_wellformed denv)) (R.ok []) dctors
-      in
-      R.fold ~ok:(fun _ -> R.ok (tctor :: denv)) ~error:(fun e -> R.error e) r
-  in
-  List.fold_left (r_bind tctor_wellformed) (R.ok []) denv
-
-(* Check that:
-   1. No two type constructors have the same name
-   2. No two data constructors have the same name
-
-   Returns
-   - Ok (denv), if denv doesn't violate the above, otherwise
-   - Error (e), where e is an exception describing which of the above was violated.
-*)
 let check_data_env (denv : data_env) =
   let dctor_wellformed (denv : data_env) (dctor : A.var * A.ty)
       (dctors : (A.var * A.ty) list) =
