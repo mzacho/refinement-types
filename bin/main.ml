@@ -3,7 +3,7 @@ open M.Logic
 
 (****** EXAMPLE PROGRAMS *******)
 
-(****** SIMPLE CONSTANT *******)
+(****** CONSTANT 42 *******)
 let ex_42_expr = M.Parse.string_to_expr "42"
 let ex_42_type = M.Parse.string_to_type "int{v: v=42}"
 let ex_42_fs = []
@@ -11,7 +11,6 @@ let ex_42_denv = []
 let ex_42_gamma = M.Typecheck.E_Empty
 
 (****** LENGTH REFLECT LEN *******)
-
 let list_sort = S_TyCtor "list"
 
 let len : uninterp_fun =
@@ -54,6 +53,27 @@ let length_fs = [ len ]
 let length_denv = list_data_env
 let length_gamma = M.Typecheck.base_env
 
+(****** APPEND *******)
+let append_expr =
+  M.Parse.string_to_expr
+    {|
+             let rec append =
+             (fn xs.
+               (fn ys.
+                 switch xs {
+                 | Nil => ys
+                 | Cons(hd, tl) => let apptl = append tl ys in Cons hd apptl
+                 }
+               )
+             ) : xs:list{v: True} -> ys:list{v: True} -> list{v: len(v) = len(xs) + len(ys)} / len(xs)
+             in true
+      |}
+
+let append_type = M.Parse.string_to_type "bool{v: True}"
+let append_fs = [ len ]
+let append_denv = list_data_env
+let append_gamma = M.Typecheck.base_env
+
 (****** END EXAMPLE PROGRAMS *******)
 
 (****** CMDLINE PARSING *******)
@@ -69,6 +89,9 @@ let set_program s =
   | "length" ->
       program :=
         Some (length_expr, length_type, length_fs, length_denv, length_gamma)
+  | "append" ->
+      program :=
+        Some (append_expr, append_type, append_fs, append_denv, append_gamma)
   | _ -> ()
 
 let speclist =
