@@ -26,8 +26,8 @@ let rec pp_pred (p : pred) : PPrint.document =
   | P_False -> str "False"
   | P_Int i -> int i
   | P_Op (op, p, p') -> pp_pred p ^^ pp_op op ^^ pp_pred p'
-  | P_Disj (p, p') -> pp_pred p ^^ str " ∨ " ^^ pp_pred p'
-  | P_Conj (p, p') -> pp_pred p ^^ str " ∧ " ^^ pp_pred p'
+  | P_Disj (p, p') -> str "(" ^^ pp_pred p ^^ str " ∨ " ^^ pp_pred p' ^^ str ")"
+  | P_Conj (p, p') -> str "(" ^^ pp_pred p ^^ str " ∧ " ^^ pp_pred p' ^^ str ")"
   | P_Neg p -> str "¬" ^^ pp_pred p
   | P_FunApp (f, args) ->
       str f ^^ str "(" ^^ PPrint.separate_map (str ", ") pp_pred args ^^ str ")"

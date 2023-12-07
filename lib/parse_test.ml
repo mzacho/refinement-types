@@ -95,6 +95,12 @@ let%test "nat type predicate" =
 let%test "negation" =
   string_to_type "int{x: ~ False}" = T_Refined (B_Int, x', P_Neg P_False)
 
+let%test "negation binds stronger than disj" =
+  string_to_type "int{x: ~ False | True}" = T_Refined (B_Int, x', P_Disj (P_Neg P_False, P_True))
+
+let%test "negation binds stronger than conj" =
+  string_to_type "int{x: ~ False & True}" = T_Refined (B_Int, x', P_Conj (P_Neg P_False, P_True))
+
 let%test "int refined to: 0 = x" =
   string_to_type "int{x: x = 0}"
   = T_Refined (B_Int, x', P_Op (O_Eq, P_Var x', P_Int 0))
