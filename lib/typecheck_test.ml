@@ -747,7 +747,7 @@ let%test "ackermann terminates: lexicographic metrics" =
   in
   let t = Parse.string_to_type "int{v: True}" in
   let c = Typecheck.check ~debug:false Typecheck.base_env e t in
-  Solver.check c
+  Solver.check ~dbg:true c
 
 let%test "ackermann terminates (negative): when changing\n\
          \ the recursive call to (ack m) n then ackermann\n\
@@ -773,7 +773,7 @@ let%test "ackermann terminates (negative): when changing\n\
         |}
   in
   let t = Parse.string_to_type "int{v: True}" in
-  let c = Typecheck.check Typecheck.base_env e t in
+  let c = Typecheck.check ~debug:false Typecheck.base_env e t in
   not (Solver.check c)
 
 let%test "braid" =
