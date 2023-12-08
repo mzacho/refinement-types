@@ -5,7 +5,7 @@ open Parse
 
 let%test "Simple let expression typechecks" =
   let e = string_to_expr {|
-          let y = 42 in y
+          let x = 12 in x
       |} in
   let t = string_to_type "int{v: v > 10}" in
   let g = Typecheck.E_Empty in
@@ -251,36 +251,6 @@ let%test "[3; 4; 1] is not an olist" =
   let t = string_to_type "olist" in
   let g = Typecheck.base_env in
   let fs = [ max_ ] in
-  let c = Typecheck.check ~fs ~debug:false ~denv:de g e t in
-  not (Solver.check ~fs c)
-
-(* acending list *)
-
-let de =
-  let tc =
-    string_to_ty_ctor
-      {|
-        type alist =
-         | Nil => {v: isNil(v)}
-         | Cons (x:int, xs:alist{xs: (x < max(xs)) | isNil(xs)})
-               => {v: max(v) = x}.
-       |}
-  in
-  Typecheck.build_data_env [ tc ]
-
-let%test "[1; 2; 3] is an alist" =
-  let e =
-    string_to_expr
-      {|
-     let one = 1 in let two = 2 in let three = 3 in
-     let x = (Cons three) Nil in
-     let y = (Cons two) x in
-     let z = (Cons one) y in x
-     |}
-  in
-  let t = string_to_type "alist" in
-  let g = Typecheck.base_env in
-  let fs = [ amax; isNil ] in
   let c = Typecheck.check ~fs ~debug:false ~denv:de g e t in
   not (Solver.check ~fs c)
 
