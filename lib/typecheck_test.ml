@@ -443,10 +443,10 @@ let%test "Safe head positive" =
              let assert = (fn b. 0) : b:bool{b: b} -> int{v: True} in
              let safehead =
              (fn xs.
-             switch xs {
-             | Cons(hd, tl) => hd
-             | Nil => let fls = false in assert fls
-             }) : xs:list{v: 0 < len(v)} -> int{v: True}
+               switch xs {
+               | Cons(hd, tl) => hd
+               | Nil => let fls = false in assert fls
+               }) : xs:list{v: 0 < len(v)} -> int{v: True}
              in
              let x = 42 in
              let xs = Cons x Nil in
@@ -464,10 +464,10 @@ let%test "Safe head negative" =
              let assert = (fn b. 0) : b:bool{b: b} -> int{v: True} in
              let safehead =
              (fn xs.
-             switch xs {
-             | Cons(hd, tl) => hd
-             | Nil => let fls = false in assert fls
-             }) : xs:list{v: 0 < len(v)} -> int{v: True}
+               switch xs {
+               | Cons(hd, tl) => hd
+               | Nil => let fls = false in assert fls
+               }) : xs:list{v: 0 < len(v)} -> int{v: True}
              in
              let xs = Nil in
              safehead xs
@@ -484,10 +484,10 @@ let%test "length reflects len" =
       {|
              let rec length =
              (fn xs.
-             switch xs {
-             | Cons(hd, tl) => let lengthtail = length tl in let one = 1 in add lengthtail one
-             | Nil => 0
-             }) : xs:list{v: True} -> int{v: v = len(xs)} / len(xs) in
+               switch xs {
+               | Cons(hd, tl) => let lengthtail = length tl in let one = 1 in add lengthtail one
+               | Nil => 0
+               }) : xs:list{v: True} -> int{v: v = len(xs)} / len(xs) in
              length
               |}
   in
@@ -914,3 +914,58 @@ let%test "Bad range (wrong implementation)" =
     Typecheck.check ~fs:[ len ] ~denv:list_data_env Typecheck.base_env e t
   in
   not @@ Solver.check ~fs:[ len ] c
+
+(***** PROOFING SIMPLE LEMMAS ***)
+
+let%test "proof: i=2 -> j=3 -> i+j=5" =
+  let e =
+    Parse.string_to_expr
+      {| let two = 2 in
+        let three = 3 in
+        let five = 5 in
+
+        let rec x = (fn i. (fn j. add i j)
+        ) : i:int{i:i=2} -> j:int{j:j=3} -> int{v:v=5} / 42
+
+        in 42
+     |}
+  in
+  let g = Typecheck.base_env in
+  let t = Parse.string_to_type "int{v: True}" in
+  let c = Typecheck.check g e t in
+  (* Pp.dbg @@ Pp.pp_constraint c; *)
+  Solver.check c
+
+let sum : Logic.uninterp_fun = ("sum", [ Logic.S_Int ], S_Int, None)
+
+let%test "proof: sum 1 = 1" =
+  let e =
+    Parse.string_to_expr
+      {| let zero = 0 in
+        let one = 1 in
+        let two = 2 in
+        let three = 3 in
+
+        let rec sum =
+          (fn n.
+            (let b = eq n zero in
+              if b
+              then 0
+              else
+                let nn = sub n one in
+                let s = sum nn in
+                add s n)
+          ) : n:int{n: n>=0} -> int{v: v = sum(n) & ((~(n=0) | v=0) & ((n=0) | (v = n + sum(n-1)))) } / n
+      in 42
+      |}
+    (*
+      let x = (let y = sum one in
+               let z = sum zero in 42) : int{v: sum 0 = 0}
+      in 42
+     |} *)
+  in
+  let g = Typecheck.base_env in
+  let t = Parse.string_to_type "int{v: True}" in
+  let c = Typecheck.check g e t in
+  Pp.dbg @@ Pp.pp_constraint c;
+  Solver.check c ~fs:[ sum ]
