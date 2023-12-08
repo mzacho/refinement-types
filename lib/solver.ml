@@ -24,6 +24,7 @@ let check ?(dbg = false) ?(fs = []) (c : constraint_) =
     match o with
     | O_Add -> fun e1 e2 -> Arithmetic.mk_add ctx [ e1; e2 ]
     | O_Sub -> fun e1 e2 -> Arithmetic.mk_sub ctx [ e1; e2 ]
+    | O_Mul -> fun e1 e2 -> Arithmetic.mk_mul ctx [ e1; e2 ]
     | O_Eq -> Boolean.mk_eq ctx
     | O_Lt -> Arithmetic.mk_lt ctx
     | O_Le -> Arithmetic.mk_le ctx
