@@ -13,6 +13,7 @@ let pp_op (o : op) : PPrint.document =
   match o with
   | O_Add -> str "+"
   | O_Sub -> str "-"
+  | O_Mul -> str "*"
   | O_Eq -> str "="
   | O_Lt -> str "<"
   | O_Le -> str "<="

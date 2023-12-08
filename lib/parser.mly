@@ -79,6 +79,7 @@ pred:
   | NEG pred { Logic.P_Neg $2 }
   /* operators */
   | pred PLUS pred { Logic.P_Op (O_Add, $1, $3) }
+  | pred TIMES pred { Logic.P_Op (O_Mul, $1, $3) }
   | pred MINUS pred { Logic.P_Op (O_Sub, $1, $3) }
   | pred EQ pred { Logic.P_Op (O_Eq, $1, $3) }
   | pred NEQ pred { Logic.P_Neg (Logic.P_Op (O_Eq, $1, $3)) }

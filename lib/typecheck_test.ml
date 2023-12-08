@@ -961,3 +961,45 @@ let%test "proof: sum 2 = 3" =
   let t = Parse.string_to_type "int{v: v = 3}" in
   let c = Typecheck.check g e t in
   Solver.check c ~dbg:true ~fs:[ sum ]
+
+let%test "proof: 2 * sum n = n * (n+1)" =
+  let e =
+    Parse.string_to_expr
+      {|
+      let rec sumTheorem =
+        (fn n.
+        let zero = 0 in
+        let one = 1 in
+
+        let b = eq n zero in
+        if b
+        then
+          (let t = sum zero in t)
+        else
+          (
+          let nmo = sub n one in
+          let npo = add n one in
+
+          let t = sumTheorem nmo in
+
+          let tt = sum n in
+          let ttt = sum nmo in
+
+          0
+          )
+      ) : n:int{n: n >= 0} -> int{v: 2 * sum(n) = n*(n+1)} / n in
+      sumTheorem
+      |}
+  in
+  let sum_def =
+    ( "sum",
+      Parse.string_to_type
+        "n:int{v: 0 <= v} -> int{v: v = sum(n) & ((~(n=0) | v=0) & ((n=0) | (v \
+         = n + sum(n-1))))}" )
+  in
+  let g = Typecheck.( >: ) sum_def Typecheck.base_env in
+  let t =
+    Parse.string_to_type "n:int{n: n>=0} -> int{v: 2 * sum(n) = n * (n+1)}"
+  in
+  let c = Typecheck.check g e t in
+  Solver.check c ~dbg:true ~fs:[ sum ]

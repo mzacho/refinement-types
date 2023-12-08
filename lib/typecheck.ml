@@ -61,15 +61,22 @@ let base_env =
   ("add", Parse.string_to_type "x:int{v:True}->y:int{v:True}->int{z:z=(x+y)}")
   >: (( "sub",
         Parse.string_to_type "x:int{v:True}->y:int{v:True}->int{z:z=(x-y)}" )
-     >: (( "lt",
-           Parse.string_to_type
-             "x:int{v:True}->y:int{v:True}->bool{z:(~z | (x < y)) & (~(x < y) \
-              | z)}" )
-        >: (( "eq",
+     >: (( "mul",
+           Parse.string_to_type "x:int{v:True}->y:int{v:True}->int{z:z=(x*y)}"
+         )
+        >: (( "lt",
               Parse.string_to_type
-                "x:int{v:True}->y:int{v:True}->bool{z:(~z | (x = y)) & (~(x = \
+                "x:int{v:True}->y:int{v:True}->bool{z:(~z | (x < y)) & (~(x < \
                  y) | z)}" )
-           >: E_Empty)))
+           >: (( "eq",
+                 Parse.string_to_type
+                   "x:int{v:True}->y:int{v:True}->bool{z:(~z | (x = y)) & (~(x \
+                    = y) | z)}" )
+              >: (( "eqComb",
+                    (* eq combinator *)
+                    Parse.string_to_type
+                      "x:int{v:True}->y:int{v: x=y}->int{v: (v=x) & (v=y)}" )
+                 >: E_Empty)))))
 
 exception Synthesis_error of string
 exception Subtyping_error of string
@@ -242,7 +249,9 @@ let rec sort_of (fs : L.uninterp_fun list) (g : logic_env) (p : L.pred) =
           if tc = tc' then Some (Logic.S_TyCtor tc) else None
       | Some s, Some s' -> if s = s' then Some s else None
       | _ -> None)
-  | L.P_Op (L.O_Add, p1, p2) | L.P_Op (L.O_Sub, p1, p2) -> (
+  | L.P_Op (L.O_Add, p1, p2)
+  | L.P_Op (L.O_Sub, p1, p2)
+  | L.P_Op (L.O_Mul, p1, p2) -> (
       let s = sort_of fs g p1 in
       let s' = sort_of fs g p2 in
       match (s, s') with
@@ -278,7 +287,7 @@ and check_sort (fs : L.uninterp_fun list) (g : logic_env) (p : L.pred)
   match p with
   | L.P_Int _ -> s = L.S_Int
   (* check that both predicates are int-sorted *)
-  | L.P_Op (O_Add, p1, p2) | L.P_Op (O_Sub, p1, p2) ->
+  | L.P_Op (O_Add, p1, p2) | L.P_Op (O_Sub, p1, p2) | L.P_Op (O_Mul, p1, p2) ->
       s = L.S_Int && check_sort fs g p1 L.S_Int && check_sort fs g p2 L.S_Int
   | L.P_Op (O_Le, p1, p2)
   | L.P_Op (O_Ge, p1, p2)

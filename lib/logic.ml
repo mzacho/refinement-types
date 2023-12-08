@@ -1,5 +1,5 @@
 type var = string
-type op = O_Add | O_Sub | O_Eq | O_Lt | O_Le | O_Ge | O_Gt
+type op = O_Add | O_Sub | O_Mul | O_Eq | O_Lt | O_Le | O_Ge | O_Gt
 type sort = S_Int | S_Bool | S_TyCtor of string
 
 type pred =
