@@ -938,34 +938,26 @@ let%test "proof: i=2 -> j=3 -> i+j=5" =
 
 let sum : Logic.uninterp_fun = ("sum", [ Logic.S_Int ], S_Int, None)
 
-let%test "proof: sum 1 = 1" =
+let%test "proof: sum 2 = 3" =
   let e =
     Parse.string_to_expr
-      {| let zero = 0 in
-        let one = 1 in
-        let two = 2 in
-        let three = 3 in
-
-        let rec sum =
-          (fn n.
-            (let b = eq n zero in
-              if b
-              then 0
-              else
-                let nn = sub n one in
-                let s = sum nn in
-                add s n)
-          ) : n:int{n: n>=0} -> int{v: v = sum(n) & ((~(n=0) | v=0) & ((n=0) | (v = n + sum(n-1)))) } / n
-      in 42
+      {|
+       let zero = 0 in
+       let t = sum zero in
+       let one = 1 in
+       let tt = sum one in
+       let two = 2 in
+       let ttt = sum two in
+       ttt
       |}
-    (*
-      let x = (let y = sum one in
-               let z = sum zero in 42) : int{v: sum 0 = 0}
-      in 42
-     |} *)
   in
-  let g = Typecheck.base_env in
-  let t = Parse.string_to_type "int{v: True}" in
+  let sum_def =
+    ( "sum",
+      Parse.string_to_type
+        "n:int{v: 0 <= v} -> int{v: v = sum(n) & ((~(n=0) | v=0) & ((n=0) | (v \
+         = n + sum(n-1))))}" )
+  in
+  let g = Typecheck.( >: ) sum_def Typecheck.base_env in
+  let t = Parse.string_to_type "int{v: v = 3}" in
   let c = Typecheck.check g e t in
-  Pp.dbg @@ Pp.pp_constraint c;
-  Solver.check c ~fs:[ sum ]
+  Solver.check c ~dbg:true ~fs:[ sum ]
