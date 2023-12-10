@@ -64,6 +64,23 @@ let substitute_constraint (c : constraint_) (v1 : var) (v2 : var) : constraint_
   in
   subst_c c
 
+let rec strengthen_sort_constraint c s x p =
+  match c with
+  | C_Pred _ -> c
+  | C_Conj (c1, c2) ->
+      C_Conj
+        ( strengthen_sort_constraint c1 s x p,
+          strengthen_sort_constraint c2 s x p )
+  | C_Implication (v, s', p1, c) ->
+      let c' = strengthen_sort_constraint c s x p in
+      let b =
+        match (s, s') with
+        | S_TyCtor tc, S_TyCtor tc' -> tc = tc'
+        | s, s' -> s = s'
+      in
+      let p' = if b then P_Conj (p1, substitute_pred x v p) else p1 in
+      C_Implication (v, s', p', c')
+
 (* Make forall binders unique *)
 let uniqueify_binders (c : constraint_) : constraint_ =
   (* Map from binders (forall bound variables) to how many times we've previously seen a binder with the same name *)
