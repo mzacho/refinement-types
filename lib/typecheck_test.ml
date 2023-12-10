@@ -962,7 +962,7 @@ let%test "proof: sum 2 = 3" =
   let c = Typecheck.check g e t in
   Solver.check c ~dbg:true ~fs:[ sum ]
 
-let%test "proof: 2 * sum n = n * (n+1)" =
+let%test "gauss proof: 2 * sum n = n * (n+1)" =
   let e =
     Parse.string_to_expr
       {|
