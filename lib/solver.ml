@@ -94,34 +94,27 @@ let check ?(dbg = false) ?(fs = []) (c : constraint_) =
   if fv != [] then raise (Constraint_not_closed (String.concat "," fv))
   else
     let c' = uniqueify_binders c in
-    let formula = Boolean.mk_not ctx (build_expr c') in
-    let universals =
+    let c'' =
       List.fold_left
-        (fun e (_, _, _, f_cstr) ->
-          Option.fold ~none:e
+        (fun c (_, _, _, f_cstr) ->
+          Option.fold ~none:c
             ~some:(fun f_cstr ->
               match f_cstr with
-              | Logic.C_Implication (x, b, p, _) ->
+              | Logic.C_Implication (x, s, p, _) ->
                   let i = !quant_counter in
                   let x' = x ^ "_quant_" ^ string_of_int i in
                   quant_counter := i + 1;
-                  add_var x' b;
+                  add_var x' s;
                   let p' = Logic.substitute_pred x x' p in
-                  let pe = build_expr (Logic.C_Pred p') in
-                  let q =
-                    Quantifier.mk_forall_const ctx
-                      [ H.find m_var x' ]
-                      pe (Some 1) [] [] None None
-                  in
-
-                  Quantifier.expr_of_quantifier q :: e
-              | _ -> e)
+                  let cc = strengthen_sort_constraint c s x' p' in
+                  cc
+              | _ -> c)
             f_cstr)
-        [] fs
+        c' fs
     in
-
+    let formula = Boolean.mk_not ctx (build_expr c'') in
     let solver = Solver.mk_solver ctx None in
-    match Solver.check solver (universals @ [ formula ]) with
+    match Solver.check solver [ formula ] with
     | Solver.SATISFIABLE ->
         if dbg then
           Solver.get_model solver
