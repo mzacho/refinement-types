@@ -978,13 +978,8 @@ let%test "gauss proof: 2 * sum n = n * (n+1)" =
         else
           (
           let nmo = sub n one in
-          let npo = add n one in
-
           let t = sumTheorem nmo in
-
           let tt = sum n in
-          let ttt = sum nmo in
-
           0
           )
       ) : n:int{n: n >= 0} -> int{v: 2 * sum(n) = n*(n+1)} / n in
