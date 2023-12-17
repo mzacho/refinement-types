@@ -8,6 +8,14 @@ let nlen : uninterp_fun =
     S_Int,
     Some
       (("l", nlist_sort, P_Op (O_Le, P_Int 0, P_FunApp ("len", [ P_Var "l" ])))
+       ==> C_Pred P_True) )
+
+let nlen' : uninterp_fun =
+  ( "nlen",
+    [ nlist_sort ],
+    S_Int,
+    Some
+      (("l", nlist_sort, P_Op (O_Le, P_Int 0, P_FunApp ("nlen", [ P_Var "l" ])))
       ==> C_Pred P_True) )
 
 let olist_sort = S_TyCtor "olist"
@@ -18,6 +26,14 @@ let max_ : uninterp_fun =
     S_Int,
     Some
       (("l", olist_sort, P_Op (O_Le, P_Int 0, P_FunApp ("max", [ P_Var "l" ])))
+      ==> C_Pred P_True) )
+
+let olen : uninterp_fun =
+  ( "len",
+    [ olist_sort ],
+    S_Int,
+    Some
+      (("l", olist_sort, P_Op (O_Le, P_Int 0, P_FunApp ("len", [ P_Var "l" ])))
       ==> C_Pred P_True) )
 
 let alist_sort = S_TyCtor "alist"

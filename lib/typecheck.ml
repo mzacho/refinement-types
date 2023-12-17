@@ -6,6 +6,8 @@ module R = Result
 let debug_indent = ref 0
 let r_bind f r x = R.bind r (f x)
 
+let fresh_var_count = ref 0
+
 (* Data environment is a mapping of type constructor names to their (base) type and data constructors *)
 type data_env = (A.var * A.ty_ctor) list
 
@@ -50,8 +52,15 @@ let build_data_env (tctor_decls : A.ty_ctor_decl list) =
 type env = E_Empty | E_Cons of (A.var * A.ty * env)
 type logic_env = (L.var * L.sort) list
 
-let rec env_to_list (g : env) =
+let rec env_to_list (g : env) : (A.var * A.ty) list=
   match g with E_Empty -> [] | E_Cons (x, t, g') -> (x, t) :: env_to_list g'
+
+let rec denv_to_list (de : data_env) : (A.var * A.ty) list =
+  match de with
+  | [] -> []
+  | (_, ty_ctor)::de' ->
+     let (_, dctors) = ty_ctor in
+     dctors @ denv_to_list de' (* (name, A.T_Refined (bty, name, L.P_True)) :: *)
 
 (* notation *)
 let ( >: ) (v, t) g = E_Cons (v, t, g)
@@ -65,11 +74,15 @@ let base_env =
            Parse.string_to_type
              "x:int{v:True}->y:int{v:True}->bool{z:(~z | (x < y)) & (~(x < y) \
               | z)}" )
+         >: (( "ge",
+           Parse.string_to_type
+             "x:int{v:True}->y:int{v:True}->bool{z:(~z | (x >= y)) & (~(x >= y) \
+              | z)}" )
         >: (( "eq",
               Parse.string_to_type
                 "x:int{v:True}->y:int{v:True}->bool{z:(~z | (x = y)) & (~(x = \
                  y) | z)}" )
-           >: E_Empty)))
+           >: E_Empty))))
 
 exception Synthesis_error of string
 exception Subtyping_error of string
@@ -142,16 +155,24 @@ let rec implications (xs : (A.var * A.ty) list) (c : L.constraint_) :
   | [] -> c
   | (x, t) :: xs' -> implications xs' (implication x t c)
 
+let fresh_var () : A.var =
+  fresh_var_count := !fresh_var_count + 1;
+  "fr" ^ Printf.sprintf "%d" (!fresh_var_count - 1)
+
 (* Computes t[y := z] in a capture avoiding manner, see RTT 3.1 *)
 let rec substitute_type (y : A.var) (z : A.var) (t : A.ty) : A.ty =
   match t with
   | T_Refined (b, v, p) ->
-      if String.equal v y then t else T_Refined (b, v, L.substitute_pred y z p)
+     if String.equal v y then t else
+       if String.equal v z then
+         let fv = fresh_var () in
+         T_Refined (b, fv, L.substitute_pred y z @@ L.substitute_pred v fv p)
+         else T_Refined (b, v, L.substitute_pred y z p)
   | T_Arrow (v, s, t) ->
       if String.equal v y then T_Arrow (v, substitute_type y z s, t)
       else T_Arrow (v, substitute_type y z s, substitute_type y z t)
 
-let rec sub (s : A.ty) (t : A.ty) : L.constraint_ =
+let rec sub (g: env) (s : A.ty) (t : A.ty) : L.constraint_ =
   match s with
   | T_Refined (b, v1, p1) -> (
       match t with
@@ -161,13 +182,13 @@ let rec sub (s : A.ty) (t : A.ty) : L.constraint_ =
               (Subtyping_error
                  ("Refined types have different base types: " ^ pp_type s
                 ^ " and " ^ pp_type t))
-          else (v1, ty_to_sort b, p1) ==> L.C_Pred (L.substitute_pred v2 v1 p2)
+          else let v = fresh_var() in (v, ty_to_sort b, Logic.substitute_pred v1 v p1) ==> L.C_Pred (L.substitute_pred v2 v p2)
       | T_Arrow _ -> raise (Subtyping_error "Expected refined type"))
   | T_Arrow (x1, s1, t1) -> (
       match t with
       | T_Arrow (x2, s2, t2) ->
-          let ci = sub s2 s1 in
-          let co = sub (substitute_type x1 x2 t1) t2 in
+          let ci = sub g s2 s1 in
+          let co = sub g (substitute_type x1 x2 t1) t2 in
           L.C_Conj (ci, implication x2 s2 co)
       | T_Refined _ -> raise (Subtyping_error "Expected arrow type"))
 
@@ -177,15 +198,6 @@ let self (v : A.var) (t : A.ty) : A.ty =
   | T_Refined (b, v', p) ->
       T_Refined (b, v', L.P_Conj (p, L.P_Op (O_Eq, P_Var v, P_Var v')))
   | T_Arrow _ -> t
-
-let fresh_var (g : env) : A.var =
-  let rec fresh_var' (suffix_candidate : int) =
-    let var_cand = "fr" ^ Printf.sprintf "%d" suffix_candidate in
-    match lookup g var_cand with
-    | None -> var_cand
-    | Some _ -> fresh_var' (suffix_candidate + 1)
-  in
-  fresh_var' 0
 
 (* see ENT-EXT *)
 let rec close (g : env) (c : L.constraint_) : L.constraint_ =
@@ -367,7 +379,7 @@ let limit_function (fs : L.uninterp_fun list) (g : env) (m : A.metric)
     match ty with
     | T_Arrow (x, (A.T_Refined (b, y, p) as s), t)
       when metric_wf fs ((x, s) >: g) m ->
-        let x' = fresh_var g in
+        let x' = fresh_var () in
         (* substitute x' for the binder in the predicate *)
         let p_sub = L.substitute_pred x x' @@ L.substitute_pred y x p in
         (* substitute x' for the binder of the argument in the metric *)
@@ -379,7 +391,7 @@ let limit_function (fs : L.uninterp_fun list) (g : env) (m : A.metric)
         (* return the limited arrow type *)
         A.T_Arrow (x', A.T_Refined (b, x', p'), t_sub)
     | T_Arrow (x, s, t) ->
-        let x' = fresh_var g in
+        let x' = fresh_var () in
         (* substitute x' for the binder of the argument in the metric *)
         let m_sub = List.map (L.substitute_pred x x') m in
         (* substitute x' for the binder of the argument in the result type *)
@@ -494,7 +506,7 @@ let check ?(fs = []) ?(debug = false) ?(denv = []) (g : env) (e : A.expr)
             implication x s c
         | _ -> raise (Invalid_arrow_type "Expected arrow type on E_Abs"))
     | E_If (x, e1, e2) ->
-        let y = fresh_var g in
+        let y = fresh_var () in
         let c0 = check' g (A.E_Var x) (T_Refined (B_Bool, "b", L.P_True)) in
         let yt1 = A.T_Refined (B_Int, y, L.P_Var x) in
         let c1 = check' ((y, yt1) >: g) e1 ty in
@@ -516,7 +528,7 @@ let check ?(fs = []) ?(debug = false) ?(denv = []) (g : env) (e : A.expr)
         | _ -> raise (Switch_error "Switch on non-value"))
     | e ->
         let c, s = synth g e in
-        let c' = sub s ty in
+        let c' = sub g s ty in
         L.C_Conj (c, c')
   and synth' (g : env) (e : A.expr) : L.constraint_ * A.ty =
     match e with
@@ -604,6 +616,12 @@ let check ?(fs = []) ?(debug = false) ?(denv = []) (g : env) (e : A.expr)
     in
     (c, t)
   in
+  if debug then (
+    print "𝛿: ";
+    print @@ doc_to_string @@ pp_env @@ denv_to_list denv;
+    print "\n\n";
+  );
+  fresh_var_count := 0;
 
   (* Check that the provided data environment is wellformed *)
   match check_data_env denv with

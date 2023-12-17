@@ -5,23 +5,27 @@
 let%test "Fail subtyping: int <: (int -> int)" =
   let t = Parse.string_to_type "int{v: False}" in
   let t' = Parse.string_to_type "x:int{v: True} -> int{v: True}" in
-  try Solver.check (Typecheck.sub t t')
+  let g = Typecheck.E_Empty in
+  try Solver.check (Typecheck.sub g t t')
   with Typecheck.Subtyping_error _ -> true
 
 let%test "Fail subtyping: int :> (int -> int)" =
   let t' = Parse.string_to_type "int{v: True}" in
   let t = Parse.string_to_type "x:int{v: True} -> int{v: True}" in
-  try Solver.check (Typecheck.sub t t')
+  let g = Typecheck.E_Empty in
+  try Solver.check (Typecheck.sub g t t')
   with Typecheck.Subtyping_error _ -> true
 
 let%test "Successfull subtyping: (int -> int) <: (int -> int)" =
   let t = Parse.string_to_type "x:int{v: True} -> int{v: True}" in
-  Solver.check (Typecheck.sub t t)
+  let g = Typecheck.E_Empty in
+  Solver.check (Typecheck.sub g t t)
 
 let%test "Fail subtyping: int :> bool)" =
   let t' = Parse.string_to_type "bool{v: True}" in
   let t = Parse.string_to_type "int{v: True}" in
-  try Solver.check (Typecheck.sub t t')
+  let g = Typecheck.E_Empty in
+  try Solver.check (Typecheck.sub g t t')
   with Typecheck.Subtyping_error _ -> true
 
 (* Predicate sort *)
@@ -358,7 +362,7 @@ let%test "tail of non-empty list has a length strictly less than the list" =
   let c =
     Typecheck.check ~fs:[ len ] ~denv:list_data_env Typecheck.base_env e t
   in
-  Solver.check ~dbg:true ~fs:[ len ] c
+  Solver.check ~dbg:false ~fs:[ len ] c
 
 let%test "Typechecking switch expression on variable fails when alternatives \
           are not constructors of the variable's type" =
@@ -775,7 +779,7 @@ let%test "ackermann terminates: lexicographic metrics" =
   in
   let t = Parse.string_to_type "int{v: True}" in
   let c = Typecheck.check ~debug:false Typecheck.base_env e t in
-  Solver.check ~dbg:true c
+  Solver.check ~dbg:false c
 
 let%test "ackermann terminates (negative): when changing\n\
          \ the recursive call to (ack m) n then ackermann\n\
@@ -914,3 +918,15 @@ let%test "Bad range (wrong implementation)" =
     Typecheck.check ~fs:[ len ] ~denv:list_data_env Typecheck.base_env e t
   in
   not @@ Solver.check ~fs:[ len ] c
+
+
+let%test "selfification" =
+  let e = Parse.string_to_expr
+     {|
+          (fn x. x) : x:int -> int{v: v=x}
+      |} in
+  let g = Typecheck.E_Empty in
+  let t = Parse.string_to_type "x:int->int" in
+  let c = Typecheck.check ~debug:false g e t in
+  (*  dbg @@ pp_constraint c; *)
+  Solver.check c

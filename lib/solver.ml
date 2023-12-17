@@ -116,7 +116,7 @@ let check ?(dbg = false) ?(fs = []) (c : constraint_) =
     let solver = Solver.mk_solver ctx None in
     match Solver.check solver [ formula ] with
     | Solver.SATISFIABLE ->
-        if dbg then
+       if dbg then
           Solver.get_model solver
           |> Option.fold ~none:() ~some:(fun m ->
                  print_endline @@ Model.to_string m);

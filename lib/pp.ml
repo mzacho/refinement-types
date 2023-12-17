@@ -5,7 +5,7 @@ open Logic
 
 let int i = PPrint.string @@ Printf.sprintf "%d" i
 let str s = PPrint.string s
-let nl = if false then PPrint.hardline else str ""
+let nl = if true then PPrint.hardline else str ""
 let nest = PPrint.nest 2
 let ( ^^ ) = PPrint.( ^^ )
 

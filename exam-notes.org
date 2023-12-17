@@ -1,0 +1,16 @@
+* nlist demo
+
+** constructing nlists
+
+type check Nil
+see constraints
+Nil is looked up in denv
+
+change to
+Cons
+see type checking fails
+
+change to
+let x = 0 in Cons x Nil
+
+** constructing olists
