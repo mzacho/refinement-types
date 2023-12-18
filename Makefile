@@ -39,3 +39,6 @@ demo-append:
 
 demo-loop:
 	dune exec _build/default/bin/main.exe -- -example loop -debug
+
+demo-gauss:
+	dune exec _build/default/bin/main.exe -- -example gauss -debug

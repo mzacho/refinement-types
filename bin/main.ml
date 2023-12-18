@@ -114,6 +114,42 @@ let append_type = M.Parse.string_to_type "bool{v: True}"
 let append_fs = [ len ]
 let append_denv = list_data_env
 let append_gamma = M.Typecheck.base_env
+let sum : M.Logic.uninterp_fun = ("sum", [ M.Logic.S_Int ], S_Int, None)
+
+let gauss_expr =
+  M.Parse.string_to_expr
+    {|
+      let rec sumTheorem =
+        (fn n.
+        let zero = 0 in
+        let one = 1 in
+
+        let b = eq n zero in
+        if b
+        then
+          (let t = sum zero in t)
+        else
+          (
+          let nmo = sub n one in
+          let t = sumTheorem nmo in
+          let tt = sum n in
+          0
+          )
+      ) : n:int{n: n >= 0} -> int{v: 2 * sum(n) = n*(n+1)} / n in
+      0
+      |}
+
+let gauss_type = M.Parse.string_to_type "int{n: True}"
+let gauss_fs = [ sum ]
+
+let sum_def =
+  ( "sum",
+    M.Parse.string_to_type
+      "n:int{v: 0 <= v} -> int{v: v = sum(n) & ((~(n=0) | v=0) & ((n=0) | (v = \
+       n + sum(n-1))))}" )
+
+let gauss_gamma = M.Typecheck.( >: ) sum_def M.Typecheck.base_env
+let gauss_denv = []
 
 (****** END EXAMPLE PROGRAMS *******)
 
@@ -137,6 +173,8 @@ let set_program s =
   | "append" ->
       program :=
         Some (append_expr, append_type, append_fs, append_denv, append_gamma)
+  | "gauss" ->
+      program := Some (gauss_expr, gauss_type, gauss_fs, gauss_denv, gauss_gamma)
   | _ -> ()
 
 let speclist =
