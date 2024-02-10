@@ -119,5 +119,6 @@ ty1:
   | ty EOF { $1 }
 
 ty:
+  | base_ty { Ast.T_Refined ($1, "v", Logic.P_True) }
   | base_ty refinement { Ast.T_Refined ($1, fst $2, snd $2) }
   | VAR COLON ty RARROW ty { Ast.T_Arrow ($1, $3, $5) }

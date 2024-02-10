@@ -5,7 +5,7 @@ open Logic
 
 let int i = PPrint.string @@ Printf.sprintf "%d" i
 let str s = PPrint.string s
-let nl = PPrint.hardline
+let nl = if false then PPrint.hardline else str ""
 let nest = PPrint.nest 2
 let ( ^^ ) = PPrint.( ^^ )
 
@@ -35,7 +35,9 @@ let rec pp_pred (p : pred) : PPrint.document =
 let pp_sort (s : sort) : PPrint.document =
   match s with S_Int -> str "ℤ" | S_Bool -> str "𝔹" | S_TyCtor tc -> str tc
 
-let rec pp_constraint (c : constraint_) : PPrint.document =
+let rec pp_constraint ?(indent = 0) (c : constraint_) : PPrint.document =
+  PPrint.nest (indent * 2)
+  @@
   match c with
   | C_Pred p -> pp_pred p
   | C_Conj (c1, c2) -> pp_constraint c1 ^^ str " ∧ " ^^ nl ^^ pp_constraint c2
@@ -107,8 +109,10 @@ let dbg d : unit =
 let print s : unit = Printf.fprintf stdout "%s" s
 
 let rec print_indent indent =
-  if indent = 0 then () else print_indent (indent - 1);
-  print "." (* (Printf.sprintf " %i " indent) *)
+  if indent = 0 then ()
+  else (
+    print_indent (indent - 1);
+    print ".")
 
 let doc_to_string (doc : PPrint.document) : string =
   let buf = Buffer.create 0 in

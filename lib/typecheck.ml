@@ -80,6 +80,15 @@ exception Data_env_illformed_error of string
 exception Bind_error of string
 exception Termination_error of string
 
+(* for easier debugging strip unnecessary trues *)
+let rec strip_trues (c : L.constraint_) =
+  match c with
+  | C_Pred _ -> c
+  | C_Conj (C_Pred P_True, b) -> strip_trues b
+  | C_Conj (a, C_Pred P_True) -> strip_trues a
+  | C_Conj (a, b) -> C_Conj (strip_trues a, strip_trues b)
+  | C_Implication (v, s, p, c) -> C_Implication (v, s, p, strip_trues c)
+
 (* Check that:
    1. No two type constructors have the same name
    2. No two data constructors have the same name
@@ -523,7 +532,10 @@ let check ?(fs = []) ?(debug = false) ?(denv = []) (g : env) (e : A.expr)
         let t = A.T_Refined (A.B_Bool, "v", P_Neg (L.P_Var "v")) in
         (L.C_Pred L.P_True, t)
     | E_Var v -> (
-        (* To be able to rely on function application for constructing user-defined data types, first identify whether v is the name of a data constructor, and if that fails, look it up in the environment *)
+        (* To be able to rely on function application for constructing
+           user-defined data types, first identify whether v is the name
+           of a data constructor, and if that fails, look it up in the
+           environment *)
         match (lookup_dctor_ty denv v, lookup g v) with
         | Some t, _ -> (L.C_Pred L.P_True, self v t)
         | None, Some t -> (L.C_Pred L.P_True, self v t)
@@ -546,23 +558,23 @@ let check ?(fs = []) ?(debug = false) ?(denv = []) (g : env) (e : A.expr)
     let _ =
       if debug then (
         print_indent !debug_indent;
-        print "ENV: ";
+        print "Γ: ";
         print @@ doc_to_string @@ pp_env @@ env_to_list g;
         print "\n";
         print_indent !debug_indent;
         print @@ pp_expr e;
-        print "\t<==\t";
+        print " <== ";
         print @@ pp_type ty;
         print "\n";
         debug_indent := !debug_indent + 1)
     in
-    let c = check'' g e ty in
+    let c = strip_trues @@ check'' g e ty in
     let _ =
       if debug then (
         debug_indent := !debug_indent - 1;
         print_indent !debug_indent;
         print "RES: ";
-        print @@ doc_to_string @@ pp_constraint c;
+        print @@ doc_to_string @@ pp_constraint ~indent:!debug_indent c;
         print "\n")
     in
     c
@@ -570,21 +582,22 @@ let check ?(fs = []) ?(debug = false) ?(denv = []) (g : env) (e : A.expr)
     let _ =
       if debug then (
         print_indent !debug_indent;
-        print "ENV: ";
+        print "Γ: ";
         print @@ doc_to_string @@ pp_env @@ env_to_list g;
         print "\n";
-        debug_indent := !debug_indent + 1;
         print_indent !debug_indent;
         print @@ pp_expr e;
-        print "\t==>\n")
+        print " ==>\n";
+        debug_indent := !debug_indent + 1)
     in
     let c, t = synth' g e in
+    let c = strip_trues c in
     let _ =
       if debug then (
         debug_indent := !debug_indent - 1;
         print_indent !debug_indent;
         print "RES: (";
-        print @@ doc_to_string @@ pp_constraint c;
+        print @@ doc_to_string @@ pp_constraint ~indent:!debug_indent c;
         print " , ";
         print @@ pp_type t;
         print "\n")

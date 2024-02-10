@@ -27,7 +27,9 @@ let%test "fun app" =
 let x' = "x"
 let x = E_Var x'
 let o = E_Const 0
+
 let%test "let expression" = string_to_expr "let x = 0 in x" = E_Let (x', o, x)
+
 let y' = "y"
 let y = E_Var y'
 let l = E_Const 1
@@ -183,7 +185,6 @@ let%test "switch expression" =
 
 let%test "true" = Parse.string_to_expr "true" = E_True
 let%test "false" = Parse.string_to_expr "false" = E_False
-
 (* fun abs *)
 let%test "x y" = Parse.string_to_expr "x y" = E_App (E_Var "x", "y")
 
@@ -193,7 +194,6 @@ let%test "let x = true in f x " =
 
 let%test "true" = Parse.string_to_expr "true" = E_True
 let%test "false" = Parse.string_to_expr "false" = E_False
-
 (* fun abs *)
 let%test "x y" = Parse.string_to_expr "x y" = E_App (E_Var "x", "y")
 
