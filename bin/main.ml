@@ -1,4 +1,4 @@
-module M = Atlp2023
+module M = Refinement_types
 open M.Logic
 
 (****** EXAMPLE PROGRAMS *******)

@@ -1,5 +1,5 @@
 (library
- (name atlp2023)
+ (name refinement_types)
  (libraries pprint z3)
  (inline_tests
   (flags -show-counts))
