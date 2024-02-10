@@ -4,7 +4,7 @@ A refinement type checker for simply typed lamda calculus with inductive data-ty
 
 See report.pdf for details.
 
-5 ECTS project work for the class on (Advanced Topics in Programming Languague Theory)[https://kursuskatalog.au.dk/en/course/120238/Advanced-Topics-in-Programming-Language-Theory] at Aarhus University.
+5 ECTS project work for the class on [Advanced Topics in Programming Languague Theory](https://kursuskatalog.au.dk/en/course/120238/Advanced-Topics-in-Programming-Language-Theory) at Aarhus University.
 
 ### Quickstart
 
